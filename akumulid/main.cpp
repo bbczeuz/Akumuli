@@ -222,6 +222,14 @@ struct ConfigFile {
         return settings;
     }
 
+    static ServerSettings get_collectd_server(PTree conf) {
+        ServerSettings settings;
+        settings.name = "COLLECTD";
+        settings.port = conf.get<int>("COLLECTD.port");
+        settings.nworkers = 1;//conf.get<int>("COLLECTD.pool_size");
+        return settings;
+    }
+
     static ServerSettings get_tcp_server(PTree conf) {
         ServerSettings settings;
         settings.name = "TCP";
@@ -236,6 +244,7 @@ struct ConfigFile {
             get_tcp_server(conf),
             get_udp_server(conf),
             get_http_server(conf),
+            get_collectd_server(conf),
         };
         return result;
     }

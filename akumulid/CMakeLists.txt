@@ -5,9 +5,12 @@ add_executable(akumulid
     stream.cpp
     resp.cpp
     protocolparser.cpp
+    collectdprotoparser.cpp
+    collectdprotoparser.cofunc.cpp
     ingestion_pipeline.cpp
     tcp_server.cpp
     udp_server.cpp
+    collectd_server.cpp
     httpserver.cpp
     query_results_pooler.cpp
     signal_handler.cpp
