@@ -48,6 +48,8 @@ class CollectdProtoParser {
 	uint64_t parse_uint64_t(const char *p_buf, size_t p_buf_size);
 	//uint64_t parse_double64_t(const char *p_buf, size_t p_buf_size);
 	void parse_values(const char *p_buf, size_t p_buf_size, const tVarList &p_vl);
+	void escape_redis(std::string &p_str);
+	void assign_zerostring(std::string &p_dest, const char *p_src, size_t p_src_size);
 
 public:
 	CollectdProtoParser(std::shared_ptr<ProtocolConsumer> consumer);

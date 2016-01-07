@@ -74,6 +74,17 @@ double CollectdProtoParser::parse_double64_t(const char *p_buf, size_t p_buf_siz
 #define CDTIME_T_TO_DOUBLE(t) (((double) (t)) / 1073741824.0)
 
 
+void CollectdProtoParser::escape_redis(std::string &p_str)
+{
+	for (auto now_char: p_str)
+	{
+		if ((now_char < '-') || (now_char > '~'))
+		{
+			now_char = '_';
+		}
+	}
+}
+
 void CollectdProtoParser::parse_values(const char *p_buf, size_t p_buf_size, const CollectdProtoParser::tVarList &p_vl)
 {
 	uint16_t nvals;
@@ -105,43 +116,128 @@ void CollectdProtoParser::parse_values(const char *p_buf, size_t p_buf_size, con
 	}
 
 	aku_Sample sample;
-	for (auto val_idx = 0; val_idx < nvals; ++val_idx)
-	{
-		uint64_t value_be = (val_vals[val_idx].absolute); //XXX: using absolute as this is the only unsigned fixed type
-		uint64_t value = be64toh(value_be); //XXX: using absolute as this is the only unsigned fixed type
 
-		switch (val_types[val_idx])
+	logger_.info() << "Processing " << nvals << " values";
+	//TODO: Process types.db and check number of values!
+	//types.db-Format: <name><typename>+   with <name>=[a-z_]+  and <typename>=\w+<name>:<type>:<min><max> with <name>=[a-z_]+ and <type> = [{absolute},{derive},{gauge},{counter}] and <min>,<max> = \n+
+	//ASSUMING: val_names only contains escaped names
+	std::vector<std::string> val_names{"value"};
+	if (!val_names.empty())
+	{
+		if (nvals > val_names.size())
 		{
-		case VAR_TYPE_GAUGE:
-			//Data arrives as little endian double
-			sample.payload.type    = AKU_PAYLOAD_FLOAT;
-			sample.payload.float64 = val_vals[val_idx].gauge;
-			sample.payload.size    = sizeof(aku_Sample);
-			break;
-		case VAR_TYPE_COUNTER:
-		case VAR_TYPE_DERIVE:
-		case VAR_TYPE_ABSOLUTE:
-			//Data arrives as big endian uint64_t
-			sample.payload.type    = AKU_PAYLOAD_FLOAT;
-			sample.payload.float64 = static_cast<double>(value); //Value will be converted to double
-			sample.payload.size    = sizeof(aku_Sample);
-			break;
-		default:
-			std::stringstream fmt;
-			fmt << "Unknown value type: " << (unsigned int)val_types[val_idx];
-			std::runtime_error err(fmt.str());
-			BOOST_THROW_EXCEPTION(err);
+			logger_.info() << "Skipping the last " << nvals - val_names.size() << " variables (missing type info)";
+			nvals = val_names.size();
 		}
-		logger_.info() << "Value: .ts = " << p_vl.timestamp 
-			<< ", .invl = "   << p_vl.interval 
-			<< ", .host = "   << p_vl.host.c_str() 
-			<< ", .plugin = " << p_vl.plugin.c_str() 
-			<< ", .plugin_instance = " << p_vl.plugin_instance.c_str() 
-			<< ", .type = "            << p_vl.type.c_str() 
-			<< ", .type_instance = "   << p_vl.type_instance.c_str() 
-			<< ", typeof(value) = "    << (unsigned int)val_types[val_idx] 
-			<< ", .size = "            << sizeof(value) 
-			<< ", .value = "           << sample.payload.float64;
+
+		for (auto val_idx = 0; val_idx < nvals; ++val_idx)
+		{
+			uint64_t value_be = (val_vals[val_idx].absolute); //XXX: using absolute as this is the only unsigned fixed type
+			uint64_t value = be64toh(value_be); //XXX: using absolute as this is the only unsigned fixed type
+
+			switch (val_types[val_idx])
+			{
+			case VAR_TYPE_GAUGE:
+				//Data arrives as little endian double
+				sample.payload.type    = AKU_PAYLOAD_FLOAT;
+				sample.payload.float64 = val_vals[val_idx].gauge;
+				sample.payload.size    = sizeof(aku_Sample);
+				break;
+			case VAR_TYPE_COUNTER:
+			case VAR_TYPE_DERIVE:
+			case VAR_TYPE_ABSOLUTE:
+				//Data arrives as big endian uint64_t
+				sample.payload.type    = AKU_PAYLOAD_FLOAT;
+				sample.payload.float64 = static_cast<double>(value); //Value will be converted to double
+				sample.payload.size    = sizeof(aku_Sample);
+				break;
+			default:
+				std::stringstream fmt;
+				fmt << "Unknown value type: " << (unsigned int)val_types[val_idx];
+				std::runtime_error err(fmt.str());
+				BOOST_THROW_EXCEPTION(err);
+			}
+
+			//Generate series tag chain
+			std::string tag_chain;
+			{
+				//Escape values
+				assert(val_idx < val_names.size());
+				tag_chain = p_vl.plugin;
+				escape_redis(tag_chain);
+				tag_chain += "_" + val_names[val_idx];
+
+				std::vector<std::pair<std::string,std::string>> tags
+				{
+					{"host", p_vl.host}, {"plugin",p_vl.plugin}, {"plugin_instance", p_vl.plugin_instance}, {"type",p_vl.type}, {"type_instance",p_vl.type_instance}
+				};
+				for (auto now_tag: tags)
+				{
+					if ((!now_tag.second.empty()) && (now_tag.second[now_tag.second.size()-1]==0))
+					{
+						now_tag.second.erase(now_tag.second.end()-1);
+					}
+					escape_redis(now_tag.second);
+					tag_chain += " " + now_tag.first + "=" + now_tag.second;
+				}
+				if (tag_chain.size() > AKU_LIMITS_MAX_SNAME)
+				{
+					std::stringstream fmt;
+					fmt << "Tag chain too long (size: " << tag_chain.size() << ", limit: " << AKU_LIMITS_MAX_SNAME;
+					std::runtime_error err(fmt.str());
+					BOOST_THROW_EXCEPTION(err);
+				}
+				consumer_->series_to_param_id(tag_chain.c_str(), tag_chain.size(), &sample);
+			}
+			
+#if 0
+			logger_.info() << "Value: .ts = " << p_vl.timestamp 
+				<< ", .invl = "   << p_vl.interval 
+				<< ", .host = "   << p_vl.host.c_str() 
+				<< ", .plugin = " << p_vl.plugin.c_str() 
+				<< ", .plugin_instance = " << p_vl.plugin_instance.c_str() 
+				<< ", .type = "            << p_vl.type.c_str() 
+				<< ", .type_instance = "   << p_vl.type_instance.c_str() 
+				<< ", typeof(value) = "    << (unsigned int)val_types[val_idx] 
+				<< ", .size = "            << sizeof(value) 
+				<< ", .value = "           << sample.payload.float64;
+#else
+			logger_.info() << "Value: .ts = " << p_vl.timestamp 
+				<< ", .invl = "           << p_vl.interval 
+				<< ", .tag_chain = "      << tag_chain.c_str() 
+				<< ", .paramid = "        << sample.paramid
+				<< ", typeof(value) = "   << (unsigned int)val_types[val_idx] 
+				<< ", .size = "           << sizeof(value) 
+				<< ", .value = "          << sample.payload.float64;
+#endif
+
+			//Put sample to DB
+			consumer_->write(sample);
+		} //for (val_idx)
+	} //if (!val_names.empty())
+}
+
+void CollectdProtoParser::assign_zerostring(std::string &p_dest, const char *p_src, size_t p_src_size)
+{
+	//Assigns chars at p_src to p_dest skipping terminating 0
+	if ((p_src_size == 0) || (p_src == NULL))
+	{
+		p_dest.clear();
+	} else {
+		if (p_src_size == 1)
+		{
+			if (p_src[0] == 0)
+			{
+				p_dest.clear();
+			} else {
+				p_dest = p_src[0];
+			}
+		} else if (p_src[p_src_size-1] == 0)
+		{
+			p_dest.assign(p_src,p_src_size-1);
+		} else {
+			p_dest.assign(p_src,p_src_size);
+		}
 	}
 }
 
@@ -174,7 +270,7 @@ void CollectdProtoParser::parse_next(PDU pdu)
 		switch (part_type)
 		{
 		case TYPE_HOST:
-			vl.host.assign(part_head,part_size);
+			assign_zerostring(vl.host,part_head,part_size);
 			break;
 		case TYPE_TIME_HR:
 			//logger_.info() << "PDU timestamp: 0x" << std::hex << parse_uint64_t(part_head,part_size) << std::dec;
@@ -185,16 +281,23 @@ void CollectdProtoParser::parse_next(PDU pdu)
 			vl.interval  = CDTIME_T_TO_DOUBLE(parse_uint64_t(part_head,part_size));
 			break;
 		case TYPE_PLUGIN:
-			vl.plugin.assign(part_head,part_size);
+			assign_zerostring(vl.plugin,part_head,part_size);
+			vl.plugin_instance.clear();
+			vl.type.clear();
+			vl.type_instance.clear();
 			break;
 		case TYPE_PLUGIN_INSTANCE:
-			vl.plugin_instance.assign(part_head,part_size);
+			assign_zerostring(vl.plugin_instance,part_head,part_size);
+			vl.type.clear();
+			vl.type_instance.clear();
 			break;
 		case TYPE_TYPE:
+			assign_zerostring(vl.type,part_head,part_size);
 			vl.type.assign(part_head,part_size);
-			break;
+			vl.type_instance.clear();
+		break;
 		case TYPE_TYPE_INSTANCE:
-			vl.type_instance.assign(part_head,part_size);
+			assign_zerostring(vl.type_instance,part_head,part_size);
 			break;
 		case TYPE_VALUES:
 			parse_values(part_head,part_size,vl);
@@ -207,11 +310,14 @@ void CollectdProtoParser::parse_next(PDU pdu)
 		pdu.pos += part_size + part_header_size;
 	}
 
+#if 0
 	//Crash after first packet
 	std::stringstream fmt;
 	fmt << "Stopping after first packet";
 	std::runtime_error err(fmt.str());
 	BOOST_THROW_EXCEPTION(err);
+#endif
+
 }
 
 
