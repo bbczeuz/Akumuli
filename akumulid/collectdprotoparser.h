@@ -12,6 +12,7 @@ class CollectdProtoParser {
 //	bool done_;
 	std::shared_ptr<ProtocolConsumer> consumer_;
 	Logger logger_;
+	const std::string typesdb_path;
 
 	typedef enum
 	{
@@ -52,7 +53,7 @@ class CollectdProtoParser {
 	void assign_zerostring(std::string &p_dest, const char *p_src, size_t p_src_size);
 
 public:
-	CollectdProtoParser(std::shared_ptr<ProtocolConsumer> consumer);
+	CollectdProtoParser(std::shared_ptr<ProtocolConsumer> consumer, const std::string &p_typesdb_path);
 	void parse_next(PDU pdu);
 };
 

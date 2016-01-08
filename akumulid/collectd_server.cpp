@@ -13,13 +13,14 @@
 
 namespace Akumuli {
 
-CollectdServer::CollectdServer(std::shared_ptr<IngestionPipeline> pipeline, int nworkers, int port)
+CollectdServer::CollectdServer(std::shared_ptr<IngestionPipeline> pipeline, int nworkers, int port, const std::string &p_typesdb_path)
     : pipeline_(pipeline)
     , start_barrier_(nworkers + 1)
     , stop_barrier_(nworkers + 1)
     , stop_{0}
     , port_(port)
     , nworkers_(nworkers)
+    , typesdb_path_(p_typesdb_path)
     , logger_("CollectdServer", 128)
 {
 }
@@ -64,7 +65,7 @@ void CollectdServer::worker(std::shared_ptr<PipelineSpout> spout) {
 #if USE_COLLECTDPARSE_COFUNC
     CollectdProtoParserCofunc parser(spout);
 #else
-    CollectdProtoParser parser(spout);
+    CollectdProtoParser parser(spout,typesdb_path_);
 #endif
 
     try {
@@ -178,7 +179,7 @@ struct CollectdServerBuilder {
     std::shared_ptr<Server> operator () (std::shared_ptr<IngestionPipeline> pipeline,
                                          std::shared_ptr<ReadOperationBuilder>,
                                          const ServerSettings& settings) {
-        return std::make_shared<CollectdServer>(pipeline, settings.nworkers, settings.port);
+        return std::make_shared<CollectdServer>(pipeline, settings.nworkers, settings.port, settings.path);
     }
 };
 

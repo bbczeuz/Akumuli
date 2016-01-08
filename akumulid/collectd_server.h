@@ -43,6 +43,7 @@ class CollectdServer : public std::enable_shared_from_this<CollectdServer>, publ
     std::atomic<int> stop_;
     const int port_;
     const int nworkers_;
+    const std::string typesdb_path_;
 
     Logger logger_;
 
@@ -78,7 +79,7 @@ public:
       * @param port port number
       * @param pipeline pointer to ingestion pipeline
       */
-    CollectdServer(std::shared_ptr<IngestionPipeline> pipeline, int nworkers, int port);
+    CollectdServer(std::shared_ptr<IngestionPipeline> pipeline, int nworkers, int port, const std::string &p_typesdb_path);
 
     //! Start processing packets
     virtual void start(SignalHandler* sig, int id);
