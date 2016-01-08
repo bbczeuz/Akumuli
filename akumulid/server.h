@@ -12,6 +12,7 @@ namespace Akumuli {
 
 struct ServerSettings {
     std::string name;
+    std::string path;
     int         port;
     int         nworkers;
 };

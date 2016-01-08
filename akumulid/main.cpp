@@ -226,6 +226,7 @@ struct ConfigFile {
         ServerSettings settings;
         settings.name = "COLLECTD";
         settings.port = conf.get<int>("COLLECTD.port");
+        settings.path = conf.get<std::string>("COLLECTD.typesdb");
         settings.nworkers = 1;//conf.get<int>("COLLECTD.pool_size");
         return settings;
     }

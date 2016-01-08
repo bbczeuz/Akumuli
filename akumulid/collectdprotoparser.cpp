@@ -23,9 +23,10 @@ union value_u
 typedef union value_u value_t;
 //END
 
-CollectdProtoParser::CollectdProtoParser(std::shared_ptr<ProtocolConsumer> consumer):
+CollectdProtoParser::CollectdProtoParser(std::shared_ptr<ProtocolConsumer> consumer, const std::string &p_typesdb_path):
 	consumer_(consumer),
-	logger_("collectd-protocol-parser", 32)
+	logger_("collectd-protocol-parser", 32),
+	typesdb_path(p_typesdb_path)
 {
 }
 
@@ -169,7 +170,11 @@ void CollectdProtoParser::parse_values(const char *p_buf, size_t p_buf_size, con
 
 				std::vector<std::pair<std::string,std::string>> tags
 				{
-					{"host", p_vl.host}, {"plugin",p_vl.plugin}, {"plugin_instance", p_vl.plugin_instance}, {"type",p_vl.type}, {"type_instance",p_vl.type_instance}
+					{"host",            p_vl.host},
+					{"plugin",          p_vl.plugin},
+					{"plugin_instance", p_vl.plugin_instance},
+					{"type",            p_vl.type},
+					{"type_instance",   p_vl.type_instance}
 				};
 				for (auto now_tag: tags)
 				{
@@ -219,7 +224,7 @@ void CollectdProtoParser::parse_values(const char *p_buf, size_t p_buf_size, con
 
 void CollectdProtoParser::assign_zerostring(std::string &p_dest, const char *p_src, size_t p_src_size)
 {
-	//Assigns chars at p_src to p_dest skipping terminating 0
+	//Assigns chars at p_src to p_dest skipping terminating 0; Clears p_dest if p_src is NULL or empty
 	if ((p_src_size == 0) || (p_src == NULL))
 	{
 		p_dest.clear();
@@ -295,7 +300,7 @@ void CollectdProtoParser::parse_next(PDU pdu)
 			assign_zerostring(vl.type,part_head,part_size);
 			vl.type.assign(part_head,part_size);
 			vl.type_instance.clear();
-		break;
+			break;
 		case TYPE_TYPE_INSTANCE:
 			assign_zerostring(vl.type_instance,part_head,part_size);
 			break;

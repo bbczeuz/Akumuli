@@ -16,6 +16,14 @@ target_link_libraries(test_utils
 )
 add_test(utils test_utils)
 
+add_executable(
+    test_typesdb
+    test_typesdb.cpp
+)
+target_link_libraries(test_typesdb
+)
+add_test(utils test_typesdb)
+
 # Streams
 add_executable(
     test_streams
