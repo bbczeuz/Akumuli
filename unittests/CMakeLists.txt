@@ -21,7 +21,9 @@ add_executable(
     test_typesdb.cpp
 )
 target_link_libraries(test_typesdb
+    ${Boost_LIBRARIES}
 )
+
 add_test(utils test_typesdb)
 
 # Streams
