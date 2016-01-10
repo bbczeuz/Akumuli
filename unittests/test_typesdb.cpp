@@ -2,164 +2,14 @@
 #include <fstream>
 #include <string>
 #include <map>
+
+#define BOOST_TEST_DYN_LINK
+#define BOOST_TEST_MODULE Main
+#include <boost/test/unit_test.hpp>
 #include <boost/algorithm/string.hpp>
+#include "../akumulid/collectd_typesdb.h"
 
-using std::cout;
-using std::endl;
-using std::flush;
-
-struct TypesDBentry
-{
-	std::string name_;
-	typedef enum
-	{
-		GAUGE,COUNTER,DCOUNTER,DERIVE,DDERIVE,ABSOLUTE,COMPUTE
-	} eMappedName;
-	eMappedName mapped_name_;
-	double min_,max_;
-
-	static const char* str_from_mapped_name(eMappedName p_name)
-	{
-		switch (p_name)
-		{
-			#define CASE_STR_RET_STR(x) case x: return #x; break
-			default:
-			CASE_STR_RET_STR(GAUGE);
-			CASE_STR_RET_STR(COUNTER);
-			CASE_STR_RET_STR(DCOUNTER);
-			CASE_STR_RET_STR(DERIVE);
-			CASE_STR_RET_STR(DDERIVE);
-			CASE_STR_RET_STR(ABSOLUTE);
-			CASE_STR_RET_STR(COMPUTE);
-		}
-	}
-	static eMappedName mapped_name_from_str(std::string const&p_str)
-	{
-		//Translates p_str to eMappedName value; Defaults to GAUGE
-		if (boost::iequals(p_str,"gauge"))
-		{
-			return TypesDBentry::GAUGE;
-		} else
-		if (boost::iequals(p_str,"counter"))
-		{
-			return TypesDBentry::COUNTER;
-		} else
-		if (boost::iequals(p_str,"dcounter"))
-		{
-			return TypesDBentry::DCOUNTER;
-		} else
-		if (boost::iequals(p_str,"derive"))
-		{
-			return TypesDBentry::DERIVE;
-		} else
-		if (boost::iequals(p_str,"dderive"))
-		{
-			return TypesDBentry::DDERIVE;
-		} else
-		if (boost::iequals(p_str,"absolute"))
-		{
-			return TypesDBentry::ABSOLUTE;
-		} else
-		if (boost::iequals(p_str,"compute"))
-		{
-			return TypesDBentry::COMPUTE;
-		} else {
-			return TypesDBentry::GAUGE;
-		}
-	}
-};
-
-struct TypesDB: std::map<std::string, std::vector<TypesDBentry> >
-{
-	void load(const std::string &p_path);      // Loads a whole types.db file 
-	void parse_line(const std::string p_line); // Parses a single line
-	void dump(std::ostream &p_out) const;      // Dumps the current contents to p_out
-};
-
-void TypesDB::load(const std::string &p_path)
-{
-	std::ifstream inf(p_path);
-	if (!inf.good())
-	{
-		std::cerr << "ERROR: Input file bad\n";
-	}
-	std::string now_line;
-	while (std::getline(inf,now_line))
-	{
-		boost::trim(now_line);
-		auto compos = now_line.find('#');
-		if (compos != std::string::npos)
-		{
-			now_line.erase(compos);
-		}
-		if (now_line.empty())
-		{
-			continue;
-		}
-		cout << "now_line = \"" << now_line.c_str() << "\"\n";
-		parse_line(now_line);
-	}
-}
-
-void TypesDB::parse_line(const std::string p_line)
-{
-	//std::string now_line = "load                    shortterm:GAUGE:0:5000, midterm:GAUGE:0:5000, longterm:GAUGE:0:5000";
-	//std::string now_line = "latency                 value:GAUGE:0:U";
-	typedef std::vector< std::string > StrVector;
-	StrVector parts;
-
-	//Split into value name and type sections
-	boost::split( parts, p_line, boost::is_any_of("\t ,"), boost::token_compress_on );
-	auto parts_begin = parts.begin();
-	auto parts_end   = parts.end();
-	auto nvals       = parts.size();
-
-	std::cout << "Value name: " << parts_begin->c_str() << "\n"; 
-	if (nvals < 2)
-	{
-		std::cerr << "ERROR: Found no value parts\n";
-		return;
-	}
-
-	std::cout << "Found " << --nvals << " value types:\n";
-	++parts_begin; //Skip value name
-
-	//Process individual sections
-	for (auto now_part = parts_begin; now_part != parts_end; ++now_part)
-	{ 
-		auto now_part_str = *now_part;
-		std::cout << "\t" << now_part_str.c_str() << "\n";
-
-		StrVector sections;
-		boost::split( sections, now_part_str, boost::is_any_of(":"), boost::token_compress_on ); 
-		if (sections.size() != 4)
-		{
-			std::cerr << "ERROR: Found other than four sections per part\n";
-			continue;
-		}
-		this->operator[](parts[0]).push_back(TypesDBentry{
-			.name_ = sections[0],
-			.mapped_name_ = TypesDBentry::mapped_name_from_str(sections[1]),
-			.min_  = boost::iequals(sections[2],"u") ? -std::numeric_limits<double>::infinity(): std::stod(sections[2]),
-			.max_  = boost::iequals(sections[3],"u") ?  std::numeric_limits<double>::infinity(): std::stod(sections[3])
-		});
-	}
-}
-
-
-void TypesDB::dump(std::ostream &p_out) const
-{
-	for (const auto now_val: *this)
-	{
-		for (const auto now_part: now_val.second)
-		{
-			p_out   << now_val.first.c_str() << "." << now_part.name_.c_str() << ": " 
-				<< TypesDBentry::str_from_mapped_name(now_part.mapped_name_) 
-				<< " " << now_part.min_ <<" ... " << now_part.max_ << std::endl;
-		}
-	}
-}
-
+#if 0
 int main()
 {
 	//Load file
@@ -167,3 +17,66 @@ int main()
 	typesdb.load("types_test.db");
 	typesdb.dump(cout);
 }
+#endif
+
+BOOST_AUTO_TEST_CASE(Test_typesdb_0) {
+	TypesDB typesdb;
+	typesdb.parse_line("name 	value:GAUGE:0:U");
+	BOOST_CHECK(typesdb.size() == 1);
+	typesdb.parse_line("name 	value:GAUGE:0:U");
+	BOOST_CHECK(typesdb.size() == 1);
+	typesdb.parse_line("namei 	value:GAUGE:0:U");
+	BOOST_CHECK(typesdb.size() == 2);
+}
+
+BOOST_AUTO_TEST_CASE(Test_typesdb_1) {
+	TypesDB typesdb;
+	typesdb.parse_line("name 	value:GAUGE:0:U");
+	typesdb.parse_line("namei 	value:GAUGE:0:U");
+	BOOST_CHECK(typesdb.find("name") != typesdb.end());
+	BOOST_CHECK(typesdb.find("namei") != typesdb.end());
+}
+
+BOOST_AUTO_TEST_CASE(Test_typesdb_2) {
+	TypesDB typesdb;
+	typesdb.parse_line("name 	value:GAUGE:0:U");
+	BOOST_CHECK(typesdb["name"].size() == 1);
+}
+
+BOOST_AUTO_TEST_CASE(Test_typesdb_3) {
+	TypesDB typesdb;
+	typesdb.parse_line("names 	value:GAUGE:0:U");
+	typesdb.parse_line("namei 	value:ABSOLUTE:U:-100");
+	typesdb.parse_line("namek 	value:COUNTER:-100:1000");
+	BOOST_CHECK(typesdb["names"][0].name_.compare("value") == 0);
+	BOOST_CHECK(typesdb["names"][0].mapped_name_ == TypesDBentry::GAUGE);
+	BOOST_CHECK(typesdb["namei"][0].mapped_name_ == TypesDBentry::ABSOLUTE);
+	BOOST_CHECK(typesdb["namek"][0].mapped_name_ == TypesDBentry::COUNTER);
+	BOOST_CHECK(typesdb["names"][0].min_ == 0);
+	BOOST_CHECK(typesdb["namei"][0].min_ < -1<<31);
+	BOOST_CHECK(typesdb["namek"][0].min_ == -100);
+	BOOST_CHECK(typesdb["names"][0].max_ > 1<<31); 
+	BOOST_CHECK(typesdb["namei"][0].max_ == -100);
+	BOOST_CHECK(typesdb["namek"][0].max_ == 1000); 
+}
+
+BOOST_AUTO_TEST_CASE(Test_typesdb_4) {
+	TypesDB typesdb;
+	typesdb.parse_line("names 	value:GAUGE:0:U, type2:COUNTER:U:0");
+	BOOST_CHECK(typesdb["names"].size() == 2);
+	BOOST_CHECK(typesdb["names"][0].name_.compare("value") == 0);
+	BOOST_CHECK(typesdb["names"][1].name_.compare("type2") == 0);
+	BOOST_CHECK(typesdb["names"][0].mapped_name_ == TypesDBentry::GAUGE);
+	BOOST_CHECK(typesdb["names"][1].mapped_name_ == TypesDBentry::COUNTER);
+	BOOST_CHECK(typesdb["names"][0].min_ == 0);
+	BOOST_CHECK(typesdb["names"][1].min_ < -1<<31);
+	BOOST_CHECK(typesdb["names"][0].max_ > 1<<31); 
+	BOOST_CHECK(typesdb["names"][1].max_ == 0); 
+}
+
+//TODO: Any negative tests needed?
+// - Invalid characters, names, values
+// - empty strings
+// - multi-line strings
+// - any escaping?
+

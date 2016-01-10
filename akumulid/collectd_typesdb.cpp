@@ -5,10 +5,7 @@
 // Parse types.db for importing collectd data into akumuli
 //
 
-#include <iostream>
 #include <fstream>
-#include <string>
-#include <map>
 #include <boost/algorithm/string.hpp>
 #include "collectd_typesdb.h"
 
@@ -17,7 +14,11 @@ void TypesDB::load(const std::string &p_path)
 	std::ifstream inf(p_path);
 	if (!inf.good())
 	{
-		std::cerr << "ERROR: Input file bad\n";
+		const char* msg = strerror(errno);
+		std::string fmt("ERROR: Input file bad: ");
+		fmt += msg;
+		std::runtime_error err(fmt);
+		BOOST_THROW_EXCEPTION(err);
 	}
 	std::string now_line;
 	while (std::getline(inf,now_line))
@@ -32,7 +33,7 @@ void TypesDB::load(const std::string &p_path)
 		{
 			continue;
 		}
-		cout << "now_line = \"" << now_line.c_str() << "\"\n";
+		//cout << "now_line = \"" << now_line.c_str() << "\"\n";
 		parse_line(now_line);
 	}
 }
@@ -50,27 +51,30 @@ void TypesDB::parse_line(const std::string p_line)
 	auto parts_end   = parts.end();
 	auto nvals       = parts.size();
 
-	std::cout << "Value name: " << parts_begin->c_str() << "\n"; 
+	//std::cout << "Value name: " << parts_begin->c_str() << "\n"; 
 	if (nvals < 2)
 	{
-		std::cerr << "ERROR: Found no value parts\n";
-		return;
+		std::string fmt("Found no value types (line: \"" + p_line + "\")");
+		std::runtime_error err(fmt);
+		BOOST_THROW_EXCEPTION(err);
 	}
 
-	std::cout << "Found " << --nvals << " value types:\n";
+	//std::cout << "Found " << --nvals << " value types:\n";
 	++parts_begin; //Skip value name
 
 	//Process individual sections
 	for (auto now_part = parts_begin; now_part != parts_end; ++now_part)
 	{ 
 		auto now_part_str = *now_part;
-		std::cout << "\t" << now_part_str.c_str() << "\n";
+		//std::cout << "\t" << now_part_str.c_str() << "\n";
 
 		StrVector sections;
 		boost::split( sections, now_part_str, boost::is_any_of(":"), boost::token_compress_on ); 
 		if (sections.size() != 4)
 		{
-			std::cerr << "ERROR: Found other than four sections per part\n";
+			std::string fmt("Found more or less than four sections per type (type: \"" + now_part_str + "\")");
+			std::runtime_error err(fmt);
+			BOOST_THROW_EXCEPTION(err);
 			continue;
 		}
 		this->operator[](parts[0]).push_back(TypesDBentry{
