@@ -81,15 +81,54 @@ BOOST_AUTO_TEST_CASE(Test_typesdb_4) {
 BOOST_AUTO_TEST_CASE(Test_typesdb_10) {
 	TypesDB typesdb;
 	typesdb.lock();
-	int caught=0;
+	int caught_locked=0;
 	try
 	{
 		typesdb.parse_line("names       value:GAUGE:0:U");
 	} catch (std::domain_error &e)
 	{
-		caught=1;
+		caught_locked=1;
 	}
-	BOOST_CHECK(caught==1);
+	BOOST_CHECK(caught_locked==1);
+}
+
+BOOST_AUTO_TEST_CASE(Test_typesdb_11) {
+	TypesDB typesdb;
+	int caught_missing_fields=0;
+	try
+	{
+		typesdb.parse_line("names       GAUGE:0:U");
+	} catch (std::runtime_error &e)
+	{
+		caught_missing_fields=1;
+	}
+	BOOST_CHECK(caught_missing_fields==1);
+}
+
+BOOST_AUTO_TEST_CASE(Test_typesdb_12) {
+	TypesDB typesdb;
+	int caught_empty_fields=0;
+	try
+	{
+		typesdb.parse_line("names       value::0:U");
+	} catch (std::runtime_error &e)
+	{
+		caught_empty_fields=1;
+	}
+	BOOST_CHECK(caught_empty_fields==1);
+}
+
+BOOST_AUTO_TEST_CASE(Test_typesdb_13) {
+	TypesDB typesdb;
+	int caught_invalid_type=0;
+	try
+	{
+		typesdb.parse_line("names       value:INVALID_TYPE:0:U");
+	} catch (std::runtime_error &e)
+	{
+		caught_invalid_type=1;
+	}
+	BOOST_WARN(caught_invalid_type==1);
 }
 //TODO: Any negative tests needed?
 // - Invalid characters, names, values

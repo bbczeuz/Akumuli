@@ -27,7 +27,8 @@ CollectdServer::CollectdServer(std::shared_ptr<IngestionPipeline> pipeline, int 
 }
 
 
-void CollectdServer::start(SignalHandler *sig, int id) {
+void CollectdServer::start(SignalHandler *sig, int id)
+{
     auto self = shared_from_this();
     sig->add_handler(boost::bind(&CollectdServer::stop, std::move(self)), id);
 
@@ -101,7 +102,7 @@ void CollectdServer::worker(std::shared_ptr<PipelineSpout> spout) {
         }
 
         timeval tval;
-        tval.tv_sec = 0;
+        tval.tv_sec  = 0;
         tval.tv_usec = 1000;  // 1ms
         if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tval, sizeof(tval)) == -1) {
             const char* msg = strerror(errno);
@@ -112,9 +113,9 @@ void CollectdServer::worker(std::shared_ptr<PipelineSpout> spout) {
         }
 
         // Bind socket to port
-        sa.sin_family = AF_INET;
+        sa.sin_family      = AF_INET;
         sa.sin_addr.s_addr = htonl(INADDR_ANY);
-        sa.sin_port = htons(port_);
+        sa.sin_port        = htons(port_);
 
         if (bind(sockfd, (sockaddr *) &sa, sizeof(sa)) == -1) {
             const char* msg = strerror(errno);

@@ -1,0 +1,14 @@
+* Collectd
+  * Typesdb
+    - More negative Unittests (invalid data)
+  * Protoparser
+    - Better handle escaping
+    - Worker: Check if cofuncs make sense
+* Akumulid
+  * Queryparser
+    - Make parser more robust (Target: No abort/sigsegv/exception EVER)
+
+Common:
+  * Decide upon correct escaping of tag names/values
+    - std::regex!
+
