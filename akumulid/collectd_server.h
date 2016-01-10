@@ -25,8 +25,9 @@
 
 #include "ingestion_pipeline.h"
 #include "logger.h"
-#include "collectdprotoparser.cofunc.h"
-#include "collectdprotoparser.h"
+//#include "collectd_protoparser.cofunc.h"
+//#include "collectd_protoparser.h"
+#include "collectd_typesdb.h"
 #include "server.h"
 
 
@@ -46,6 +47,8 @@ class CollectdServer : public std::enable_shared_from_this<CollectdServer>, publ
     const std::string typesdb_path_;
 
     Logger logger_;
+
+    TypesDB typesdb_;
 
     static const int MSS = 2048-128;
     static const int NPACKETS = 512;

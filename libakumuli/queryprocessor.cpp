@@ -520,6 +520,8 @@ static std::shared_ptr<RegexFilter> parse_where_clause(boost::property_tree::ptr
             series_regexp << ")";
             std::string regex = series_regexp.str();
             result = std::make_shared<RegexFilter>(regex, pool);
+	    std::string logstr = "Where regexp: " + regex;
+	    logger(AKU_LOG_INFO, logstr.c_str());
         }
     } else {
         not_set = true;
@@ -534,6 +536,7 @@ static std::shared_ptr<RegexFilter> parse_where_clause(boost::property_tree::ptr
         std::string regex = series_regexp.str();
         result = std::make_shared<RegexFilter>(regex, pool);
     }
+   
     return result;
 }
 
