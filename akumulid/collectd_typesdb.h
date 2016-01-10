@@ -5,10 +5,8 @@
 // Parse types.db for importing collectd data into akumuli
 
 #pragma once
-#include <fstream>
 #include <string>
 #include <map>
-#include <boost/algorithm/string.hpp>
 
 struct TypesDBentry
 {

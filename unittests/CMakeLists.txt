@@ -19,6 +19,8 @@ add_test(utils test_utils)
 add_executable(
     test_typesdb
     test_typesdb.cpp
+    ../akumulid/collectd_typesdb.cpp
+    ../akumulid/collectd_typesdb.h
 )
 target_link_libraries(test_typesdb
     ${Boost_LIBRARIES}
