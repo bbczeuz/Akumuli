@@ -11,11 +11,15 @@
 
 void TypesDB::load(const std::string &p_path)
 {
+	//Load and parse types.db file
+
+	//We don't do any locking check here, as this function doesn't do any changes to the object itself (parse_line does)
+	
 	std::ifstream inf(p_path);
 	if (!inf.good())
 	{
 		const char* msg = strerror(errno);
-		std::string fmt("ERROR: Input file bad: ");
+		std::string fmt("ERROR: Input file ("+p_path+") bad: ");
 		fmt += msg;
 		std::runtime_error err(fmt);
 		BOOST_THROW_EXCEPTION(err);
@@ -40,6 +44,10 @@ void TypesDB::load(const std::string &p_path)
 
 void TypesDB::parse_line(const std::string p_line)
 {
+	if (locked_)
+	{
+		throw std::domain_error("object locked");
+	}
 	//std::string now_line = "load                    shortterm:GAUGE:0:5000, midterm:GAUGE:0:5000, longterm:GAUGE:0:5000";
 	//std::string now_line = "latency                 value:GAUGE:0:U";
 	typedef std::vector< std::string > StrVector;
@@ -77,7 +85,7 @@ void TypesDB::parse_line(const std::string p_line)
 			BOOST_THROW_EXCEPTION(err);
 			continue;
 		}
-		this->operator[](parts[0]).push_back(TypesDBentry{
+		map_[parts[0]].push_back(TypesDBentry{
 			.name_ = sections[0],
 			.mapped_name_ = TypesDBentry::mapped_name_from_str(sections[1]),
 			.min_  = boost::iequals(sections[2],"u") ? -std::numeric_limits<double>::infinity(): std::stod(sections[2]),
@@ -89,7 +97,7 @@ void TypesDB::parse_line(const std::string p_line)
 
 void TypesDB::dump(std::ostream &p_out) const
 {
-	for (const auto now_val: *this)
+	for (const auto now_val: map_)
 	{
 		for (const auto now_part: now_val.second)
 		{
@@ -97,6 +105,72 @@ void TypesDB::dump(std::ostream &p_out) const
 				<< TypesDBentry::str_from_mapped_name(now_part.mapped_name_) 
 				<< " " << now_part.min_ <<" ... " << now_part.max_ << std::endl;
 		}
+	}
+}
+
+#if 0
+const TypesDB::entry_type& TypesDB::operator[](  const std::string& p_key ) const
+{
+	auto iter = map_.find(p_key);
+	if (iter != map_.end())
+	{
+		return iter.second;
+	} else {
+		return <new entry? smart ptr? wtf?>
+	}
+}
+#endif
+
+
+const char* TypesDBentry::str_from_mapped_name(eMappedName p_name)
+{
+	switch (p_name)
+	{
+		#define CASE_STR_RET_STR(x) case x: return #x; break
+		default:
+		CASE_STR_RET_STR(GAUGE);
+		CASE_STR_RET_STR(COUNTER);
+		CASE_STR_RET_STR(DCOUNTER);
+		CASE_STR_RET_STR(DERIVE);
+		CASE_STR_RET_STR(DDERIVE);
+		CASE_STR_RET_STR(ABSOLUTE);
+		CASE_STR_RET_STR(COMPUTE);
+	}
+}
+
+
+TypesDBentry::eMappedName TypesDBentry::mapped_name_from_str(std::string const&p_str)
+{
+	//Translates p_str to eMappedName value; Defaults to GAUGE
+	if (boost::iequals(p_str,"gauge"))
+	{
+		return TypesDBentry::GAUGE;
+	} else
+	if (boost::iequals(p_str,"counter"))
+	{
+		return TypesDBentry::COUNTER;
+	} else
+	if (boost::iequals(p_str,"dcounter"))
+	{
+		return TypesDBentry::DCOUNTER;
+	} else
+	if (boost::iequals(p_str,"derive"))
+	{
+		return TypesDBentry::DERIVE;
+	} else
+	if (boost::iequals(p_str,"dderive"))
+	{
+		return TypesDBentry::DDERIVE;
+	} else
+	if (boost::iequals(p_str,"absolute"))
+	{
+		return TypesDBentry::ABSOLUTE;
+	} else
+	if (boost::iequals(p_str,"compute"))
+	{
+		return TypesDBentry::COMPUTE;
+	} else {
+		return TypesDBentry::GAUGE;
 	}
 }
 

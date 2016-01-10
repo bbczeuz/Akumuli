@@ -2,6 +2,7 @@
 #pragma once
 
 #include "protocolparser.h"
+#include "collectd_typesdb.h"
 
 namespace Akumuli {
 
@@ -12,7 +13,7 @@ class CollectdProtoParser {
 //	bool done_;
 	std::shared_ptr<ProtocolConsumer> consumer_;
 	Logger logger_;
-	const std::string typesdb_path;
+	std::shared_ptr<const TypesDB> typesdb_;
 
 	typedef enum
 	{
@@ -46,14 +47,15 @@ class CollectdProtoParser {
 	} tVarList;
 
 
-	uint64_t parse_uint64_t(const char *p_buf, size_t p_buf_size);
+	static uint64_t parse_uint64_t(const char *p_buf, size_t p_buf_size);
 	//uint64_t parse_double64_t(const char *p_buf, size_t p_buf_size);
 	void parse_values(const char *p_buf, size_t p_buf_size, const tVarList &p_vl);
-	void escape_redis(std::string &p_str);
-	void assign_zerostring(std::string &p_dest, const char *p_src, size_t p_src_size);
+	static void escape_redis(std::string &p_str);
+	static void assign_zerostring(std::string &p_dest, const char *p_src, size_t p_src_size);
 
 public:
-	CollectdProtoParser(std::shared_ptr<ProtocolConsumer> consumer, const std::string &p_typesdb_path);
+	CollectdProtoParser(std::shared_ptr<ProtocolConsumer> consumer, std::shared_ptr<const TypesDB> p_typesdb);
+	void start();
 	void parse_next(PDU pdu);
 };
 

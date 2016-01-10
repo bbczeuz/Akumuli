@@ -1,4 +1,5 @@
 #include "collectd_server.h"
+#include "collectd_protoparser.h"
 
 #include <thread>
 
@@ -35,6 +36,11 @@ void CollectdServer::start(SignalHandler *sig, int id) {
         const char* msg = aku_error_message(status);
         logger->error() << msg;
     };
+
+    //Parse types.db
+    typesdb_.load(typesdb_path_);
+    typesdb_.lock();
+
     // Create workers
     for (int i = 0; i < nworkers_; i++) {
         auto spout = pipeline_->make_spout();
@@ -65,7 +71,7 @@ void CollectdServer::worker(std::shared_ptr<PipelineSpout> spout) {
 #if USE_COLLECTDPARSE_COFUNC
     CollectdProtoParserCofunc parser(spout);
 #else
-    CollectdProtoParser parser(spout,typesdb_path_);
+    CollectdProtoParser parser(spout,std::make_shared<const TypesDB>(typesdb_));
 #endif
 
     try {
@@ -153,6 +159,13 @@ void CollectdServer::worker(std::shared_ptr<PipelineSpout> spout) {
                 };
 
                 parser.parse_next(pdu);
+
+#if 0
+                std::stringstream fmt;
+                fmt << "Terminating after one packet";
+                std::runtime_error err(fmt.str());
+                BOOST_THROW_EXCEPTION(err);
+#endif
             }
             if (retval != 0) {
                 iobuf = std::make_shared<IOBuf>();

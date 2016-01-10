@@ -33,7 +33,11 @@ BOOST_AUTO_TEST_CASE(Test_typesdb_1) {
 	TypesDB typesdb;
 	typesdb.parse_line("name 	value:GAUGE:0:U");
 	typesdb.parse_line("namei 	value:GAUGE:0:U");
+	std::string name_str("name");
+	BOOST_CHECK(typesdb.exists("name"));
+	BOOST_CHECK(typesdb.exists(name_str));
 	BOOST_CHECK(typesdb.find("name") != typesdb.end());
+	BOOST_CHECK(typesdb.find(name_str) != typesdb.end());
 	BOOST_CHECK(typesdb.find("namei") != typesdb.end());
 }
 
@@ -74,6 +78,19 @@ BOOST_AUTO_TEST_CASE(Test_typesdb_4) {
 	BOOST_CHECK(typesdb["names"][1].max_ == 0); 
 }
 
+BOOST_AUTO_TEST_CASE(Test_typesdb_10) {
+	TypesDB typesdb;
+	typesdb.lock();
+	int caught=0;
+	try
+	{
+		typesdb.parse_line("names       value:GAUGE:0:U");
+	} catch (std::domain_error &e)
+	{
+		caught=1;
+	}
+	BOOST_CHECK(caught==1);
+}
 //TODO: Any negative tests needed?
 // - Invalid characters, names, values
 // - empty strings
