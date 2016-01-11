@@ -9,6 +9,7 @@
 
 //Testing
 //curl http://localhost:8181 --data '{ "metric": "df_value", "range":{ "from":"20160105T213503.1", "to":  "20160202T030500" }, "where": { "plugin_instance": ["home"] } }'
+//curl http://localhost:8181 --data '{ "output": { "format": "csv" }, "select": "names"}'
 namespace Akumuli {
 
 //Code from collectd: daemon/plugin.h
@@ -58,13 +59,21 @@ uint64_t CollectdProtoParser::parse_uint64_t(const char *p_buf, size_t p_buf_siz
 
 void CollectdProtoParser::escape_redis(std::string &p_str)
 {
-	boost::replace_all(p_str, "\"", "\\\"");
+	//As there isn't any escaping, replace any non-alphanummeric chars by '_'
+
 #if 0
-	for (auto now_char: p_str)
+	boost::replace_all(p_str, "\"", "\\\"");
+#else
+	for (size_t idx=0;idx < p_str.size(); ++idx)
 	{
+		char now_char = p_str[idx];
 		if ((now_char >= 'a') && (now_char <= 'z')) continue;
 		if ((now_char >= 'A') && (now_char <= 'Z')) continue;
 		if ((now_char >= '0') && (now_char <= '9')) continue;
+
+		p_str.at(idx) = '_';
+		continue;
+#if 0
 		switch (now_char)
 		{
 			case '.':
@@ -78,8 +87,9 @@ void CollectdProtoParser::escape_redis(std::string &p_str)
 		}
 		if ((now_char < '-') || (now_char > '~'))
 		{
-			now_char = '_';
+			p_str.at(idx) = '_';
 		}
+#endif
 	}
 #endif
 }
