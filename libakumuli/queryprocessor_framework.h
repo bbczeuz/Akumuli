@@ -4,6 +4,7 @@
 
 #include "akumuli.h"
 #include "seriesparser.h"
+#include "seriesmatcher.h"
 
 #include <boost/property_tree/ptree.hpp>
 

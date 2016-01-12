@@ -40,6 +40,7 @@
 #include "sequencer.h"
 #include "cursor.h"
 #include "seriesparser.h"
+#include "seriesmatcher.h"
 #include "akumuli_def.h"
 #include "metadatastorage.h"
 

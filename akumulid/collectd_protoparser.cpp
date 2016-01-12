@@ -7,9 +7,14 @@
 #define TAG_QUOTES 0
 //#define TAG_QUOTES "\""
 
-//Testing
+//Testing Reading:
 //curl http://localhost:8181 --data '{ "metric": "df_value", "range":{ "from":"20160105T213503.1", "to":  "20160202T030500" }, "where": { "plugin_instance": ["home"] } }'
+//curl http://localhost:8181 --data '{"output": {"format": "csv"}, "metric": "test", "range": {"from": "20160111T152647.70", "to": "20160111T152647.72"}}'
 //curl http://localhost:8181 --data '{ "output": { "format": "csv" }, "select": "names"}'
+
+//Testing Writing:
+//date ++%Y-%m-%dT%H:%M:%SZ | awk '{print "+df_value host=postgres plugin=df plugin_instance=var type=percent_bytes type_instance=used \r\n"$0"\r\n+24.3"}' | nc localhost 8282
+
 namespace Akumuli {
 
 //Code from collectd: daemon/plugin.h

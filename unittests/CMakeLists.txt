@@ -267,6 +267,7 @@ add_executable(
     ../libakumuli/metadatastorage.cpp
     ../libakumuli/util.cpp
     ../libakumuli/seriesparser.cpp
+    ../libakumuli/seriesmatcher.cpp
     ../libakumuli/stringpool.cpp
 )
 
@@ -288,6 +289,7 @@ add_executable(
     test_seriesparser
     test_parser.cpp
     ../libakumuli/seriesparser.cpp
+    ../libakumuli/seriesmatcher.cpp
     ../libakumuli/stringpool.cpp
     ../libakumuli/util.cpp
     ../libakumuli/datetime.cpp
@@ -312,6 +314,7 @@ add_executable(
     ../libakumuli/anomalydetector.cpp
     ../libakumuli/hashfnfamily.cpp
     ../libakumuli/seriesparser.cpp
+    ../libakumuli/seriesmatcher.cpp
     ../libakumuli/stringpool.cpp
     ../libakumuli/util.cpp
     ../libakumuli/datetime.cpp
