@@ -25,6 +25,7 @@
 #include "akumuli.h"
 #include "akumuli_def.h"
 #include "seriesparser.h"
+#include "seriesmatcher.h"
 
 namespace Akumuli {
 

@@ -17,6 +17,7 @@ add_library(akumuli SHARED
     stringpool.h
     storage.cpp
     seriesparser.cpp
+    seriesmatcher.cpp
     page.cpp
     akumuli.cpp
     util.cpp
