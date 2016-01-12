@@ -31,53 +31,6 @@
 
 namespace Akumuli {
 
-
-/** Series matcher. Table that maps series names to series
-  * ids. Should be initialized on startup from sqlite table.
-  */
-struct SeriesMatcher {
-    // TODO: add LRU cache
-    //! Pooled string
-    typedef StringTools::StringT StringT;
-    //! Series name descriptor - pointer to string, length, series id.
-    typedef std::tuple<const char*, int, uint64_t> SeriesNameT;
-
-    typedef StringTools::TableT TableT;
-    typedef StringTools::InvT   InvT;
-
-    // Variables
-    StringPool               pool;       //! String pool that stores time-series
-    TableT                   table;      //! Series table (name to id mapping)
-    InvT                     inv_table;  //! Ids table (id to name mapping)
-    uint64_t                 series_id;  //! Series ID counter
-    std::vector<SeriesNameT> names;      //! List of recently added names
-    std::mutex               mutex;      //! Mutex for shared data
-
-    SeriesMatcher(uint64_t starting_id);
-
-    /** Add new string to matcher.
-      */
-    uint64_t add(const char* begin, const char* end);
-
-    /** Add value from DB to matcher. This function should be
-      * used only to load data from database to matcher. Internal
-      * `series_id` counter shouldn't be affected by this call.
-      */
-    void _add(std::string series, uint64_t id);
-
-    /** Match string and return it's id. If string is new return 0.
-      */
-    uint64_t match(const char* begin, const char* end);
-
-    //! Convert id to string
-    StringT id2str(uint64_t tokenid) const;
-
-    /** Push all new elements to the buffer.
-      * @param buffer is an output parameter that will receive new elements
-      */
-    void pull_new_names(std::vector<SeriesNameT> *buffer);
-};
-
 /** Namespace class to store all parsing related things.
   */
 struct SeriesParser
