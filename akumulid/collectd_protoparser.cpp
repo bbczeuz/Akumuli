@@ -210,7 +210,9 @@ void CollectdProtoParser::parse_values(const char *p_buf, size_t p_buf_size, con
 					std::runtime_error err(fmt.str());
 					BOOST_THROW_EXCEPTION(err);
 				}
-				consumer_->series_to_param_id(tag_chain.c_str(), tag_chain.size(), &sample);
+				//consumer_->series_to_param_id(tag_chain.c_str(), tag_chain.size(), &sample);
+				const char tta[]="metric taga=B";
+				consumer_->series_to_param_id(tta, strlen(tta), &sample);
 			}
 			
 			logger_.info() << "Value: .ts = " << sample.timestamp
