@@ -78,6 +78,30 @@ target_link_libraries(
 )
 add_test(protocol-parser test_protocolparser)
 
+# Collectd protocol parser
+add_executable(
+    test_collectd_protoparser
+    test_collectd_protoparser.cpp
+    ../akumulid/collectd_protoparser.cpp 
+    ../akumulid/collectd_protoparser.h
+    ../akumulid/collectd_typesdb.cpp
+    ../akumulid/collectd_typesdb.h
+    ../akumulid/logger.cpp 
+    ../akumulid/logger.h
+    ../akumulid/stream.cpp 
+    ../akumulid/stream.h
+    ../akumulid/resp.cpp 
+    ../akumulid/resp.h
+)
+target_link_libraries(
+    test_collectd_protoparser
+    akumuli
+    sqlite3
+    ${Boost_LIBRARIES}
+    "${LOG4CXX_LIBRARIES}"
+)
+add_test(collectd-protocol-parser test_collectd_protoparser)
+
 # Pipeline test
 add_executable(
     test_pipeline

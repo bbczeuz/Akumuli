@@ -1,10 +1,11 @@
-
 #pragma once
 
 #include "protocolparser.h"
 #include "collectd_typesdb.h"
 
 namespace Akumuli {
+
+struct CollectdProtoParser_tester;
 
 class CollectdProtoParser {
 //	mutable Caller *caller_;
@@ -15,7 +16,8 @@ class CollectdProtoParser {
 	Logger logger_;
 	std::shared_ptr<const TypesDB> typesdb_;
 
-	typedef enum
+protected:
+	enum class ePartTypes
 	{
 		TYPE_HOST            = 0x0000,
 		TYPE_TIME            = 0x0001,
@@ -31,16 +33,17 @@ class CollectdProtoParser {
 		TYPE_SEVERITY        = 0x0101,
 		TYPE_SIGN_SHA256     = 0x0200,
 		TYPE_ENCR_AES256     = 0x0210,
-	} ePartTypes;
-	typedef enum
+	};
+
+	enum class eVarTypes
 	{
 		VAR_TYPE_COUNTER     = 0x0000,
 		VAR_TYPE_GAUGE       = 0x0001,
 		VAR_TYPE_DERIVE      = 0x0002,
 		VAR_TYPE_ABSOLUTE    = 0x0003,
-	} eVarTypes;
+	};
 
-	typedef struct
+	struct tVarList
 	{
 		std::string host;
 		std::string plugin;
@@ -48,7 +51,9 @@ class CollectdProtoParser {
 		std::string type;
 		std::string type_instance;
 		uint64_t timestamp, interval;
-	} tVarList;
+
+		tVarList(): timestamp(0), interval(0) {};
+	};
 
 
 	static uint64_t parse_uint64_t(const char *p_buf, size_t p_buf_size);
@@ -56,12 +61,20 @@ class CollectdProtoParser {
 	void parse_values(const char *p_buf, size_t p_buf_size, const tVarList &p_vl);
 	static void escape_redis(std::string &p_str);
 	static void assign_zerostring(std::string &p_dest, const char *p_src, size_t p_src_size);
+	static std::string make_tag_chain(const tVarList &p_vl, const std::string &p_varname);
 
 public:
 	CollectdProtoParser(std::shared_ptr<ProtocolConsumer> consumer, std::shared_ptr<const TypesDB> p_typesdb);
 	void start();
 	void parse_next(PDU pdu);
+
+	friend struct CollectdProtoParser_tester;
 };
 
 
 }  // namespace
+//struct Bla
+//{ int a,cc,b,c,d;
+//};
+//
+//Bla bla = { .a = 1, .c = 2, 3, 4 }

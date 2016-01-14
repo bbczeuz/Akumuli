@@ -71,7 +71,8 @@ typedef enum {
     //! Stale data in sequencer, merge to disk required
     AKU_EMERGE_REQUIRED = 13,
 
-    AKU_EMAX_ERROR = 14,
+    AKU_MAGIC_CODE = 14,
+    AKU_EMAX_ERROR = 15
 } aku_Status;
 
 

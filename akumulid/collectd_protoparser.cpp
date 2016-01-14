@@ -105,6 +105,53 @@ void CollectdProtoParser::escape_redis(std::string &p_str)
 #endif
 }
 
+std::string CollectdProtoParser::make_tag_chain(const tVarList &p_vl, const std::string &p_varname)
+{
+	//Assuming values are ALREADY escaped!
+
+	std::string tag_chain{p_vl.plugin};
+	tag_chain.push_back('_');
+	tag_chain += p_varname;
+
+	//Using const char* + push_back instead of std::string increases speed from 312ksps to 715ksps
+	//std::vector<std::pair<const std::string &,const std::string &>> tags
+	//std::vector<std::pair<const char *,const std::string &> > tags
+	const std::array<std::pair<const char *,const std::string &>, 5> tags
+	{
+		{
+			{"host",            p_vl.host},
+			{"plugin",          p_vl.plugin},
+			{"plugin_instance", p_vl.plugin_instance},
+			{"type",            p_vl.type},
+			{"type_instance",   p_vl.type_instance}
+		}
+	};
+	for (auto now_tag: tags)
+	{
+#if 0
+		tag_chain += " " + now_tag.first + "=" + now_tag.second;
+#else
+		tag_chain.push_back(' ');
+		tag_chain += now_tag.first;
+		tag_chain.push_back('=');
+		tag_chain += now_tag.second;
+#endif
+	}
+	//tag_chain += '\0'; //Tag must be \0 terminated
+	if (tag_chain.size() > AKU_LIMITS_MAX_SNAME)
+	{
+		std::stringstream fmt;
+		fmt << "Tag chain too long (size: " << tag_chain.size() << ", limit: " << AKU_LIMITS_MAX_SNAME;
+		std::runtime_error err(fmt.str());
+		BOOST_THROW_EXCEPTION(err);
+	}
+	//consumer_->series_to_param_id(tag_chain.c_str(), tag_chain.size(), &sample);
+	//const char tta[]="metric taga=B";
+	//return tta;
+	return tag_chain;
+}
+
+
 void CollectdProtoParser::parse_values(const char *p_buf, size_t p_buf_size, const CollectdProtoParser::tVarList &p_vl)
 {
 	size_t nvals;
@@ -142,7 +189,10 @@ void CollectdProtoParser::parse_values(const char *p_buf, size_t p_buf_size, con
 	auto typenames_it = typesdb_->find(p_vl.type.c_str());
 	if (typenames_it == typesdb_->end())
 	{
-		logger_.info() << "Variable type \"" << p_vl.type << "\" not found in types.db. Skipping.";
+		logger_.info()  << "Variable type \""        << p_vl.type.c_str() << "\" not found in types.db ("
+				<< "plugin \""               << p_vl.plugin.c_str()
+				<< "\", instance = \""       << p_vl.plugin_instance.c_str() 
+				<< "\", type_instance = \""  << p_vl.type_instance.c_str() << "\"). Skipping.";
 		return;
 	} else {
 		const auto &typenames = typenames_it->second;
@@ -152,7 +202,7 @@ void CollectdProtoParser::parse_values(const char *p_buf, size_t p_buf_size, con
 			nvals = typenames.size();
 		}
 
-		for (size_t val_idx = 0; val_idx < nvals; ++val_idx)
+		for (size_t val_idx = 0u; val_idx < nvals; ++val_idx)
 		{
 			uint64_t value_be = (val_vals[val_idx].absolute); //XXX: using absolute as this is the only unsigned fixed type
 			uint64_t value = be64toh(value_be); //XXX: using absolute as this is the only unsigned fixed type
@@ -183,47 +233,10 @@ void CollectdProtoParser::parse_values(const char *p_buf, size_t p_buf_size, con
 			}
 
 			//Generate series tag chain
-			std::string tag_chain;
-			{
-				//Escape values
-				assert(val_idx < typenames.size());
-				tag_chain = p_vl.plugin;
-				escape_redis(tag_chain);
-				tag_chain += "_" + typenames[val_idx].name_;
-
-				std::vector<std::pair<std::string,std::string>> tags
-				{
-					{"host",            p_vl.host},
-					{"plugin",          p_vl.plugin},
-					{"plugin_instance", p_vl.plugin_instance},
-					{"type",            p_vl.type},
-					{"type_instance",   p_vl.type_instance}
-				};
-				for (auto now_tag: tags)
-				{
-					escape_redis(now_tag.second);
-#if TAG_QUOTES != 0
-					tag_chain += " " + now_tag.first + "=" TAG_QUOTES + now_tag.second + TAG_QUOTES;
-#else
-					tag_chain += " " + now_tag.first + "="            + now_tag.second;
-#endif
-				}
-				//tag_chain += '\0'; //Tag must be \0 terminated
-				if (tag_chain.size() > AKU_LIMITS_MAX_SNAME)
-				{
-					std::stringstream fmt;
-					fmt << "Tag chain too long (size: " << tag_chain.size() << ", limit: " << AKU_LIMITS_MAX_SNAME;
-					std::runtime_error err(fmt.str());
-					BOOST_THROW_EXCEPTION(err);
-				}
-				//consumer_->series_to_param_id(tag_chain.c_str(), tag_chain.size(), &sample);
-				const char tta[]="metric taga=B";
-				std::string ttas = tta;
-				consumer_->series_to_param_id(ttas.c_str(), strlen(ttas.c_str()), &sample);
-			}
-			
+			std::string tag_chain = make_tag_chain(p_vl, typenames[val_idx].name_);
+			consumer_->series_to_param_id(tag_chain.c_str(), std::strlen(tag_chain.c_str()), &sample);
+#if 0
 			logger_.info() << "Value: .ts = " << sample.timestamp
-//				<< ", .invl = "           << p_vl.interval 
 				<< ", .paramid = "        << sample.paramid
 				<< ", .tag_chain = "      << tag_chain.c_str() 
 				<< ", .type = "           << sample.payload.type
@@ -231,6 +244,7 @@ void CollectdProtoParser::parse_values(const char *p_buf, size_t p_buf_size, con
 				<< ", .data = "           << sample.payload.data
 				<< ", .value = "          << sample.payload.float64
 			;
+#endif
 
 			//Put sample to DB
 			consumer_->write(sample);
@@ -266,7 +280,8 @@ void CollectdProtoParser::parse_next(PDU pdu)
 {
 	logger_.trace() << "Parsing PDU";
 
-	tVarList vl = {};
+	//tVarList vl = {};
+	tVarList vl;
 	vl.timestamp = 0;
 	vl.interval  = 0;
 	const size_t part_header_size = 2*sizeof(uint16_t);
@@ -305,23 +320,33 @@ void CollectdProtoParser::parse_next(PDU pdu)
 			break;
 		case TYPE_PLUGIN:
 			assign_zerostring(vl.plugin,part_head,part_size);
+			escape_redis(vl.plugin);
+			logger_.info() << "plugin(" << vl.plugin.c_str() << ")";
 			vl.plugin_instance.clear();
 			vl.type.clear();
 			vl.type_instance.clear();
 			break;
 		case TYPE_PLUGIN_INSTANCE:
 			assign_zerostring(vl.plugin_instance,part_head,part_size);
-			vl.type.clear();
-			vl.type_instance.clear();
+			escape_redis(vl.plugin_instance);
+			logger_.info() << "plugin_instance(" << vl.plugin_instance.c_str() << ")";
+			//Commented out as some plugins (aggregation,cpu,df,memory) sometimes don't update type field when changing plugin_instance
+			//vl.type.clear();
+			//vl.type_instance.clear();
 			break;
 		case TYPE_TYPE:
 			assign_zerostring(vl.type,part_head,part_size);
-			vl.type_instance.clear();
+			escape_redis(vl.type);
+			logger_.info() << "type(" << vl.type.c_str() << ")";
+			//vl.type_instance.clear();
 			break;
 		case TYPE_TYPE_INSTANCE:
 			assign_zerostring(vl.type_instance,part_head,part_size);
+			escape_redis(vl.type_instance);
+			logger_.info() << "type_instance(" << vl.type_instance.c_str() << ")";
 			break;
 		case TYPE_VALUES:
+			logger_.info() << "parse_values";
 			parse_values(part_head,part_size,vl);
 			break;
 		default:

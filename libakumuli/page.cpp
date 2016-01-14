@@ -227,7 +227,12 @@ aku_Status PageHeader::complete_chunk(const UncompressedChunk& data) {
     aku_MemRange head = {&desc, sizeof(desc)};
     status = add_entry(AKU_CHUNK_BWD_ID, first_ts, head);
     if (status != AKU_SUCCESS) {
-        return status;
+	if (status == AKU_EBAD_ARG)
+	{
+		return AKU_MAGIC_CODE;
+	} else { 
+		return status;
+	}
     }
     status = add_entry(AKU_CHUNK_FWD_ID, last_ts, head);
     if (status != AKU_SUCCESS) {
