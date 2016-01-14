@@ -77,6 +77,8 @@ void ProtocolParser::worker(Caller& caller) {
                 bytes_read = stream.read_string(buffer, buffer_len);
                 buffer[bytes_read] = '\0';
                 if (aku_parse_timestamp(buffer, &sample) == AKU_SUCCESS) {
+			logger_.info() << "Timestamp: " << sample.timestamp;
+		    
                     break;
                 }
             default:
