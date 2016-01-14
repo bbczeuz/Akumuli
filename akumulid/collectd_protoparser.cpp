@@ -11,9 +11,15 @@
 //curl http://localhost:8181 --data '{ "metric": "df_value", "range":{ "from":"20160105T213503.1", "to":  "20160202T030500" }, "where": { "plugin_instance": ["home"] } }'
 //curl http://localhost:8181 --data '{"output": {"format": "csv"}, "metric": "test", "range": {"from": "20160111T152647.70", "to": "20160111T152647.72"}}'
 //curl http://localhost:8181 --data '{ "output": { "format": "csv" }, "select": "names"}'
+//One needs to wait for the data to propagate before reading stuff: (invoke push_text.sh twice)
+//curl http://localhost:8181 --data '{"output":{"format":"csv"},"metric":"testi","range":{"from": "20160114T131220", "to": "20160114T131221"}}'
 
 //Testing Writing:
 //date ++%Y-%m-%dT%H:%M:%SZ | awk '{print "+df_value host=postgres plugin=df plugin_instance=var type=percent_bytes type_instance=used \r\n"$0"\r\n+24.3"}' | nc localhost 8282
+//date ++%Y-%m-%dT%H:%M:%SZ | awk '{print "+test tag1=A tag2=C tag3=I\r\n"$0"\r\n+24.3"}' | nc localhost 8282
+//date -u ++%Y%m%dT%H%M%S.%N | awk '{print "+testi tag1=A tag2=C tag3=I\r\n"$0"\r\n+24.3"}' | nc localhost 8282
+//
+//functests/push_text.sh
 
 namespace Akumuli {
 
@@ -59,7 +65,7 @@ uint64_t CollectdProtoParser::parse_uint64_t(const char *p_buf, size_t p_buf_siz
 }
 
 //From collectd: daemon/utils_time.h
-#define CDTIME_T_TO_DOUBLE(t) (((double) (t)) / 1073741824.0)
+#define CDTIME_T_TO_DOUBLE(t) (((double) (t)) / 1.0737418240)
 
 
 void CollectdProtoParser::escape_redis(std::string &p_str)
@@ -151,7 +157,7 @@ void CollectdProtoParser::parse_values(const char *p_buf, size_t p_buf_size, con
 			uint64_t value_be = (val_vals[val_idx].absolute); //XXX: using absolute as this is the only unsigned fixed type
 			uint64_t value = be64toh(value_be); //XXX: using absolute as this is the only unsigned fixed type
 
-			aku_Sample sample;
+			aku_Sample sample{ .timestamp = p_vl.timestamp };
 
 			switch (val_types[val_idx])
 			{
@@ -212,7 +218,8 @@ void CollectdProtoParser::parse_values(const char *p_buf, size_t p_buf_size, con
 				}
 				//consumer_->series_to_param_id(tag_chain.c_str(), tag_chain.size(), &sample);
 				const char tta[]="metric taga=B";
-				consumer_->series_to_param_id(tta, strlen(tta), &sample);
+				std::string ttas = tta;
+				consumer_->series_to_param_id(ttas.c_str(), strlen(ttas.c_str()), &sample);
 			}
 			
 			logger_.info() << "Value: .ts = " << sample.timestamp
@@ -259,7 +266,9 @@ void CollectdProtoParser::parse_next(PDU pdu)
 {
 	logger_.trace() << "Parsing PDU";
 
-	tVarList vl;
+	tVarList vl = {};
+	vl.timestamp = 0;
+	vl.interval  = 0;
 	const size_t part_header_size = 2*sizeof(uint16_t);
 	while (pdu.pos+part_header_size < pdu.size)
 	{

@@ -42,7 +42,11 @@ class CollectdProtoParser {
 
 	typedef struct
 	{
-		std::string host,plugin,plugin_instance,type,type_instance;
+		std::string host;
+		std::string plugin;
+		std::string plugin_instance;
+		std::string type;
+		std::string type_instance;
 		uint64_t timestamp, interval;
 	} tVarList;
 

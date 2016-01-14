@@ -39,7 +39,7 @@
 // Data structures
 //-----------------
 
-typedef uint64_t    aku_Timestamp;    //< Timestamp
+typedef uint64_t    aku_Timestamp;    //< Timestamp (ns since begin of the current epoch, GMT)
 typedef uint64_t    aku_ParamId;      //< Parameter (or sequence) id
 
 //! Structure represents memory region

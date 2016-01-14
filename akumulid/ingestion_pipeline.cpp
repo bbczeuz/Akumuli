@@ -110,7 +110,7 @@ PipelineSpout::PipelineSpout(std::shared_ptr<Queue> q, BackoffPolicy bp, std::sh
 {
     pool_.resize(POOL_SIZE);
     for(int ix = POOL_SIZE; ix --> 0;) {
-        pool_.at(ix).reset(new TVal());
+        pool_.at(ix).reset(new TVal{{}, nullptr, nullptr});
     }
 }
 
