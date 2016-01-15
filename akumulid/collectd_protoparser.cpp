@@ -149,9 +149,9 @@ std::string CollectdProtoParser::make_tag_chain(const tVarList &p_vl, const std:
 		BOOST_THROW_EXCEPTION(err);
 	}
 	//consumer_->series_to_param_id(tag_chain.c_str(), tag_chain.size(), &sample);
-	//const char tta[]="metric taga=B";
-	//return tta;
-	return tag_chain;
+	const char tta[]="metric taga=B";
+	return tta;
+	//return tag_chain;
 }
 
 
