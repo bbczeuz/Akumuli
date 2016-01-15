@@ -11,8 +11,10 @@
 //curl http://localhost:8181 --data '{ "metric": "df_value", "range":{ "from":"20160105T213503.1", "to":  "20160202T030500" }, "where": { "plugin_instance": ["home"] } }'
 //curl http://localhost:8181 --data '{"output": {"format": "csv"}, "metric": "test", "range": {"from": "20160111T152647.70", "to": "20160111T152647.72"}}'
 //curl http://localhost:8181 --data '{ "output": { "format": "csv" }, "select": "names"}'
+//
 //One needs to wait for the data to propagate before reading stuff: (invoke push_text.sh twice)
 //curl http://localhost:8181 --data '{"output":{"format":"csv"},"metric":"testi","range":{"from": "20160114T131220", "to": "20160114T131221"}}'
+//curl http://localhost:8181 --data '{"output":{"format":"csv"},"metric":"metric","range":{"from": "20160114T131220", "to": "20160131T131221"}}'
 
 //Testing Writing:
 //date ++%Y-%m-%dT%H:%M:%SZ | awk '{print "+df_value host=postgres plugin=df plugin_instance=var type=percent_bytes type_instance=used \r\n"$0"\r\n+24.3"}' | nc localhost 8282
@@ -115,7 +117,8 @@ std::string CollectdProtoParser::make_tag_chain(const tVarList &p_vl, const std:
 	tag_chain.reserve(200);
 	tag_chain.push_back('_');
 	tag_chain += p_varname;
-
+	tag_chain += " taga=D";
+#if 0
 	//Using const char* + push_back instead of std::string increases speed from 312ksps to 715ksps
 	//std::vector<std::pair<const std::string &,const std::string &>> tags
 	//std::vector<std::pair<const char *,const std::string &> > tags
@@ -148,10 +151,14 @@ std::string CollectdProtoParser::make_tag_chain(const tVarList &p_vl, const std:
 		std::runtime_error err(fmt.str());
 		BOOST_THROW_EXCEPTION(err);
 	}
+#endif
 	//consumer_->series_to_param_id(tag_chain.c_str(), tag_chain.size(), &sample);
-	const char tta[]="metric taga=B";
-	return tta;
-	//return tag_chain;
+	//const char tta[]="metric taga=C";
+	//std::string ttas = tta;
+	//return tta;
+	//return ttas;
+	return tag_chain;
+	//return p_varname;
 }
 
 
@@ -205,12 +212,12 @@ void CollectdProtoParser::parse_values(const char *p_buf, size_t p_buf_size, con
 			nvals = typenames.size();
 		}
 
+		aku_Sample sample{ .timestamp = p_vl.timestamp };
+
 		for (size_t val_idx = 0u; val_idx < nvals; ++val_idx)
 		{
 			uint64_t value_be = (val_vals[val_idx].absolute); //XXX: using absolute as this is the only unsigned fixed type
 			uint64_t value = be64toh(value_be); //XXX: using absolute as this is the only unsigned fixed type
-
-			aku_Sample sample{ .timestamp = p_vl.timestamp };
 
 			switch (val_types[val_idx])
 			{
@@ -238,7 +245,7 @@ void CollectdProtoParser::parse_values(const char *p_buf, size_t p_buf_size, con
 			//Generate series tag chain
 			std::string tag_chain = make_tag_chain(p_vl, typenames[val_idx].name_);
 			consumer_->series_to_param_id(tag_chain.c_str(), std::strlen(tag_chain.c_str()), &sample);
-#if 0
+#if 1
 			logger_.info() << "Value: .ts = " << sample.timestamp
 				<< ", .paramid = "        << sample.paramid
 				<< ", .tag_chain = "      << tag_chain.c_str() 
