@@ -17,7 +17,7 @@ class CollectdProtoParser {
 	std::shared_ptr<const TypesDB> typesdb_;
 
 protected:
-	enum class ePartTypes
+	enum ePartTypes
 	{
 		TYPE_HOST            = 0x0000,
 		TYPE_TIME            = 0x0001,
@@ -35,7 +35,7 @@ protected:
 		TYPE_ENCR_AES256     = 0x0210,
 	};
 
-	enum class eVarTypes
+	enum eVarTypes
 	{
 		VAR_TYPE_COUNTER     = 0x0000,
 		VAR_TYPE_GAUGE       = 0x0001,
@@ -45,14 +45,15 @@ protected:
 
 	struct tVarList
 	{
-		std::string host;
-		std::string plugin;
-		std::string plugin_instance;
-		std::string type;
-		std::string type_instance;
-		uint64_t timestamp, interval;
-
-		tVarList(): timestamp(0), interval(0) {};
+		//We need to copy the data anyhow (escaping), so a std::string is not a big performance penalty
+#define tVarListVARTYPE std::string
+//#define tVarListVARTYPE const char * 
+		tVarListVARTYPE host;
+		tVarListVARTYPE plugin;
+		tVarListVARTYPE plugin_instance;
+		tVarListVARTYPE type;
+		tVarListVARTYPE type_instance;
+		uint64_t timestamp = 0, interval = 0;
 	};
 
 

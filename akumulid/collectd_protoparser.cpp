@@ -75,9 +75,11 @@ void CollectdProtoParser::escape_redis(std::string &p_str)
 #if 0
 	boost::replace_all(p_str, "\"", "\\\"");
 #else
-	for (size_t idx=0;idx < p_str.size(); ++idx)
+	auto p_str_size = p_str.size();
+	auto p_str_ptr  = p_str.c_str();
+	for (size_t idx=0;idx < p_str_size; ++idx)
 	{
-		char now_char = p_str[idx];
+		char now_char = p_str_ptr[idx];
 		if ((now_char >= 'a') && (now_char <= 'z')) continue;
 		if ((now_char >= 'A') && (now_char <= 'Z')) continue;
 		if ((now_char >= '0') && (now_char <= '9')) continue;
@@ -110,6 +112,7 @@ std::string CollectdProtoParser::make_tag_chain(const tVarList &p_vl, const std:
 	//Assuming values are ALREADY escaped!
 
 	std::string tag_chain{p_vl.plugin};
+	tag_chain.reserve(200);
 	tag_chain.push_back('_');
 	tag_chain += p_varname;
 
@@ -183,10 +186,10 @@ void CollectdProtoParser::parse_values(const char *p_buf, size_t p_buf_size, con
 	}
 
 
-	logger_.trace() << "Processing " << nvals << " values";
+	//logger_.trace() << "Processing " << nvals << " values";
 	//ASSUMING: val_names only contains escaped names
 	//logger_.trace() << "Looking up type " << p_vl.type.c_str() << " from a list of " << typesdb_->size() << " types";
-	auto typenames_it = typesdb_->find(p_vl.type.c_str());
+	const auto typenames_it = typesdb_->find(p_vl.type.c_str());
 	if (typenames_it == typesdb_->end())
 	{
 		logger_.info()  << "Variable type \""        << p_vl.type.c_str() << "\" not found in types.db ("
@@ -278,7 +281,7 @@ void CollectdProtoParser::assign_zerostring(std::string &p_dest, const char *p_s
 
 void CollectdProtoParser::parse_next(PDU pdu)
 {
-	logger_.trace() << "Parsing PDU";
+	//logger_.trace() << "Parsing PDU";
 
 	//tVarList vl = {};
 	tVarList vl;
@@ -290,7 +293,7 @@ void CollectdProtoParser::parse_next(PDU pdu)
 		const char *part_head = pdu.buffer.get() + pdu.pos;
 		ePartTypes  part_type = static_cast<ePartTypes>(ntohs(part_head[0] + (part_head[1]<<8)));
 		size_t      part_size = ntohs(part_head[2] + (part_head[3]<<8));
-		logger_.trace() << "PDU .pos = " << pdu.pos << ", .size = " << pdu.size << ", part_size = " << part_size << ", part_type = " << part_type;
+		//logger_.trace() << "PDU .pos = " << pdu.pos << ", .size = " << pdu.size << ", part_size = " << part_size << ", part_type = " << part_type;
 		if (part_size > (pdu.size - pdu.pos))
 		{
 			logger_.info() << "PDU part_size(" << part_size << ") > remaining PDU buffer(" << (pdu.size-pdu.pos) << ")";
@@ -309,6 +312,7 @@ void CollectdProtoParser::parse_next(PDU pdu)
 		{
 		case TYPE_HOST:
 			assign_zerostring(vl.host,part_head,part_size);
+			escape_redis(vl.host);
 			break;
 		case TYPE_TIME_HR:
 			//logger_.info() << "PDU timestamp: 0x" << std::hex << parse_uint64_t(part_head,part_size) << std::dec;
@@ -321,32 +325,32 @@ void CollectdProtoParser::parse_next(PDU pdu)
 		case TYPE_PLUGIN:
 			assign_zerostring(vl.plugin,part_head,part_size);
 			escape_redis(vl.plugin);
-			logger_.info() << "plugin(" << vl.plugin.c_str() << ")";
-			vl.plugin_instance.clear();
-			vl.type.clear();
-			vl.type_instance.clear();
+			//logger_.info() << "plugin(" << vl.plugin.c_str() << ")";
+			//XXX: Commented out as some collectd plugins (aggregation,cpu,df,memory) sometimes don't update the type field when changing plugin/plugin_instance (!)
+			//vl.plugin_instance.clear();
+			//vl.type.clear();
+			//vl.type_instance.clear();
 			break;
 		case TYPE_PLUGIN_INSTANCE:
 			assign_zerostring(vl.plugin_instance,part_head,part_size);
 			escape_redis(vl.plugin_instance);
-			logger_.info() << "plugin_instance(" << vl.plugin_instance.c_str() << ")";
-			//Commented out as some plugins (aggregation,cpu,df,memory) sometimes don't update type field when changing plugin_instance
+			//logger_.info() << "plugin_instance(" << vl.plugin_instance.c_str() << ")";
 			//vl.type.clear();
 			//vl.type_instance.clear();
 			break;
 		case TYPE_TYPE:
 			assign_zerostring(vl.type,part_head,part_size);
 			escape_redis(vl.type);
-			logger_.info() << "type(" << vl.type.c_str() << ")";
+			//logger_.info() << "type(" << vl.type.c_str() << ")";
 			//vl.type_instance.clear();
 			break;
 		case TYPE_TYPE_INSTANCE:
 			assign_zerostring(vl.type_instance,part_head,part_size);
 			escape_redis(vl.type_instance);
-			logger_.info() << "type_instance(" << vl.type_instance.c_str() << ")";
+			//logger_.info() << "type_instance(" << vl.type_instance.c_str() << ")";
 			break;
 		case TYPE_VALUES:
-			logger_.info() << "parse_values";
+			//logger_.info() << "parse_values";
 			parse_values(part_head,part_size,vl);
 			break;
 		default:
