@@ -270,6 +270,12 @@ struct CollectdProtoParser_tester: CollectdProtoParser
 	       	vl.type_instance   = "used";
 #endif
 		std::string tag_chain = CollectdProtoParser::make_tag_chain(vl,"value");
+		std::cout << "tag_chain = \"" << tag_chain.c_str() << "\", size = " << tag_chain.size() << ", strlen = " << std::strlen(tag_chain.c_str()) << ", hex: ";
+
+		for (const auto now_char: tag_chain)
+		{
+			std::cout << "0x" << std::hex << (unsigned int)now_char << ", ";
+		}
 	}
 };
 };
