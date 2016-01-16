@@ -117,8 +117,7 @@ std::string CollectdProtoParser::make_tag_chain(const tVarList &p_vl, const std:
 	tag_chain.reserve(200);
 	tag_chain.push_back('_');
 	tag_chain += p_varname;
-	tag_chain += " taga=D";
-#if 0
+
 	//Using const char* + push_back instead of std::string increases speed from 312ksps to 715ksps
 	//std::vector<std::pair<const std::string &,const std::string &>> tags
 	//std::vector<std::pair<const char *,const std::string &> > tags
@@ -137,13 +136,17 @@ std::string CollectdProtoParser::make_tag_chain(const tVarList &p_vl, const std:
 #if 0
 		tag_chain += " " + now_tag.first + "=" + now_tag.second;
 #else
-		tag_chain.push_back(' ');
-		tag_chain += now_tag.first;
-		tag_chain.push_back('=');
-		tag_chain += now_tag.second;
+		if (!now_tag.second.empty()) //FIXME: libakumuli doesn't accept empty tags. Drop tag or use a special NULL value?
+		{
+			tag_chain.push_back(' ');
+			tag_chain += now_tag.first;
+			tag_chain.push_back('=');
+			tag_chain += now_tag.second;
+		}
 #endif
 	}
-	//tag_chain += '\0'; //Tag must be \0 terminated
+	//FIXME: Make sure that there is at least one tag
+
 	if (tag_chain.size() > AKU_LIMITS_MAX_SNAME)
 	{
 		std::stringstream fmt;
@@ -152,13 +155,7 @@ std::string CollectdProtoParser::make_tag_chain(const tVarList &p_vl, const std:
 		BOOST_THROW_EXCEPTION(err);
 	}
 #endif
-	//consumer_->series_to_param_id(tag_chain.c_str(), tag_chain.size(), &sample);
-	//const char tta[]="metric taga=C";
-	//std::string ttas = tta;
-	//return tta;
-	//return ttas;
 	return tag_chain;
-	//return p_varname;
 }
 
 
