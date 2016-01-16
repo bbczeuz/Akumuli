@@ -97,6 +97,9 @@ port=8383
 # worker pool size
 pool_size=1
 
+[GRAFANA]
+port=8091
+
 # Logging configuration
 # This is just a log4cxx configuration without any modifications
 
@@ -214,6 +217,14 @@ struct ConfigFile {
         return settings;
     }
 
+    static ServerSettings get_grafana_server(PTree conf) {
+        ServerSettings settings;
+        settings.name = "GRAFANA";
+        settings.port = conf.get<int>("GRAFANA.port");
+        settings.nworkers = -1;
+        return settings;
+    }
+
     static ServerSettings get_udp_server(PTree conf) {
         ServerSettings settings;
         settings.name = "UDP";
@@ -236,6 +247,7 @@ struct ConfigFile {
             get_tcp_server(conf),
             get_udp_server(conf),
             get_http_server(conf),
+            get_grafana_server(conf),
         };
         return result;
     }
@@ -415,6 +427,7 @@ void cmd_run_server() {
     std::map<int, std::string> srvnames;
     for(auto settings: ingestion_servers) {
         auto srv = ServerFactory::instance().create(pipeline, qproc, settings);
+	assert(srv != nullptr);
         srvnames[srvid] = settings.name;
         srv->start(&sighandler, srvid++);
         std::cout << cli_format("**OK** ") << settings.name << " server started, port: " << settings.port << std::endl;
