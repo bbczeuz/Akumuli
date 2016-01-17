@@ -9,6 +9,7 @@ add_executable(akumulid
     tcp_server.cpp
     udp_server.cpp
     httpserver.cpp
+    grafana_server.cpp
     query_results_pooler.cpp
     signal_handler.cpp
 )
