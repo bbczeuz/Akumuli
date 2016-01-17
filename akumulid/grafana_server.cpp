@@ -52,7 +52,20 @@ static int http_static_response(MHD_Connection *p_connection, const char *p_mess
 	response = MHD_create_response_from_buffer (std::strlen (p_message), (void*) p_message, MHD_RESPMEM_MUST_COPY);
 	if (p_content_type != nullptr)
 	{
-		MHD_add_response_header (response, "Content-Type", p_content_type);
+		MHD_add_response_header(response, "Content-Type", p_content_type);
+#if 0
+		//Optional headers (InfluxDB 0.9.6.1 sets them)
+		MHD_add_response_header(response, "Request-Id", "51dfed75-bcc0-11e5-8728-000000000000"); //FIXME: Use unique values
+		MHD_add_response_header(response, "X-Influxdb-Version", "0.9.99"); //FIXME: Find valid value
+		MHD_add_response_header(response, "Access-Control-Expose-Headers", "Date, X-Influxdb-Version");
+		MHD_add_response_header(response, "Access-Control-Allow-Methods", "DELETE, GET, OPTIONS, POST, PUT");
+		MHD_add_response_header(response, "Access-Control-Allow-Headers", "Accept, Accept-Encoding, Authorization, Content-Length, Content-Type, X-CSRF-Token, X-HTTP-Method-Override");
+#endif
+		const char *origin = MHD_lookup_connection_value(p_connection, MHD_HEADER_KIND, "Origin");
+		if ((origin != nullptr) && ( origin[0] != 0))
+		{
+			MHD_add_response_header(response, "Access-Control-Allow-Origin", origin); // Grafana expects this header!
+		}
 	}
 	int ret = MHD_queue_response (p_connection, p_response_code, response);
 	MHD_destroy_response (response);
@@ -66,13 +79,13 @@ static int parse_show_measurments(MHD_Connection *p_connection, const std::vecto
 	{
 		//Return all measurment names
 		//TODO: Implement
-		const char *temporary_fix = "{\"results\":[{\"series\":[{\"name\":\"measurements\",\"columns\":[\"name\"],\"values\":[[\"aggregation_value\"]]}]}]}";
+		const char *temporary_fix = "{\"results\":[{\"series\":[{\"name\":\"measurements\",\"columns\":[\"name\"],\"values\":[[\"aggregation_value\"],[\"chrony_value\"],[\"collectd_value\"],[\"cpu_value\"],[\"df_free\"],[\"df_used\"],[\"df_value\"],[\"wxt_\"],[\"wxt_value\"]]}]}]}";
 		return http_static_response(p_connection, temporary_fix, MHD_HTTP_OK, "application/json");
 	} else if ((p_tokens.size() == 4) && (boost::iequals(p_tokens[2],"limit")) && ((nvals_requested = std::stoul(p_tokens[3])) > 0))
 	{
 		//Request up to nvals_requested measurement names
 		//TODO: Implement
-		const char *temporary_fix = "{\"results\":[{\"series\":[{\"name\":\"measurements\",\"columns\":[\"name\"],\"values\":[[\"aggregation_value\"],[\"chrony_value\"],[\"collectd_value\"],[\"cpu_value\"],[\"df_free\"],[\"df_used\"],[\"df_value\"],[\"wxt_\"],[\"wxt_value\"]]}]}]}";
+		const char *temporary_fix = "{\"results\":[{\"series\":[{\"name\":\"measurements\",\"columns\":[\"name\"],\"values\":[[\"aggregation_value\"]]}]}]}";
 		return http_static_response(p_connection, temporary_fix, MHD_HTTP_OK, "application/json");
 
 	} else {
@@ -80,6 +93,49 @@ static int parse_show_measurments(MHD_Connection *p_connection, const std::vecto
 	}
 	assert(0); //Shouldn't arrive here
 	return MHD_NO;
+}
+
+
+static int parse_show_tag_keys(MHD_Connection *p_connection, const std::vector<std::string> &p_tokens, const char *p_query)
+{
+	//TODO: Implement
+	const char *temporary_fix = "{\"results\":[{\"series\":[{\"name\":\"cpu_value\",\"columns\":[\"tagKey\"],\"values\":[[\"host\"],[\"instance\"],[\"type\"],[\"type_instance\"]]}]}]}";
+	return http_static_response(p_connection, temporary_fix, MHD_HTTP_OK, "application/json");
+}
+
+static int parse_show_tag_values(MHD_Connection *p_connection, const std::vector<std::string> &p_tokens, const char *p_query)
+{
+	//TODO: Implement
+	const char *temporary_fix = "{\"results\":[{\"series\":[{\"name\":\"hostTagValues\",\"columns\":[\"host\"],\"values\":[[\"www.example.com\"],[\"mail.example.com\"],[\"ftp.example.com\"],[\"wiki.example.com\"]]}]}]}";
+	return http_static_response(p_connection, temporary_fix, MHD_HTTP_OK, "application/json");
+}
+
+static int parse_show_tag(MHD_Connection *p_connection, const std::vector<std::string> &p_tokens, const char *p_query)
+{
+	if ((p_tokens.size() >= 5) && (boost::iequals(p_tokens[3],"from")))
+	{
+		if (boost::iequals(p_tokens[2],"keys"))
+		{
+			//Example: SHOW TAG KEYS FROM "cpu_value"
+			return parse_show_tag_keys(p_connection, p_tokens, p_query);
+		} else if (boost::iequals(p_tokens[2],"values"))
+		{
+			//Example: SHOW TAG VALUES FROM "cpu_value" WITH KEY = "host"
+			return parse_show_tag_values(p_connection, p_tokens, p_query);
+		} else {
+			return http_static_response(p_connection, "token[2]: expected (KEYS,VALUES) FROM <metric>", MHD_HTTP_BAD_REQUEST);
+		}
+	} else {
+		return http_static_response(p_connection, "token[2]: expected KEYS/VALUES FROM", MHD_HTTP_BAD_REQUEST);
+	}
+}
+
+static int parse_select(MHD_Connection *p_connection, const std::vector<std::string> &p_tokens, const char *p_query)
+{
+	//Example: SELECT mean("value") FROM "cpu_value" WHERE time > now() - 6h GROUP BY time(30s) fill(null)
+	//TODO: Implement
+	const char *temporary_fix = "{\"results\":[{\"series\":[{\"name\":\"cpu_value\",\"columns\":[\"time\",\"mean\"],\"values\":[[1452979800000,2.378373672222222e+08],[1452980700000,2.378835611111111e+08],[1452981600000,2.379613391111111e+08],[1453001400000,2.3967489180555555e+08]]}]}]}";
+	return http_static_response(p_connection, temporary_fix, MHD_HTTP_OK, "application/json");
 }
 
 static int parse_query_string(MHD_Connection *p_connection, const char *p_query)
@@ -102,15 +158,36 @@ static int parse_query_string(MHD_Connection *p_connection, const char *p_query)
 	}
 	if (boost::iequals(tokens[0],"show"))
 	{
-		if ((tokens.size() >= 2) && (boost::iequals(tokens[1],"measurements")))
+		if (tokens.size() >= 2)
 		{
-			return parse_show_measurments(p_connection, tokens, p_query);
+			if (boost::iequals(tokens[1],"measurements"))
+			{
+				//Example: SHOW MEASUREMENTS LIMIT 1
+				//TODO: Implement
+				return parse_show_measurments(p_connection, tokens, p_query);
+			} else if (boost::iequals(tokens[1],"field"))
+			{
+				//Example: SHOW FIELD KEYS FROM "cpu_value"
+				//TODO: Implement
+				return http_static_response(p_connection, "SHOW FIELD: Unimplemented", MHD_HTTP_BAD_REQUEST);
+			} else if (boost::iequals(tokens[1],"tag"))
+			{
+				//Example: SHOW TAG KEYS FROM "cpu_value"
+				return parse_show_tag(p_connection, tokens, p_query);
+			} else {
+				return http_static_response(p_connection, "token[1]: expected MEASUREMENTS, FIELD, TAG", MHD_HTTP_BAD_REQUEST);
+			}
+		} else {
 		}
+	} else if (boost::iequals(tokens[0],"select"))
+	{
+		//Example: SELECT mean("value") FROM "cpu_value" WHERE time > now() - 6h GROUP BY time(30s) fill(null)
+		return parse_select(p_connection, tokens, p_query);
 	} else {
 		return http_static_response(p_connection, "token[0]: expected SHOW, SELECT", MHD_HTTP_BAD_REQUEST);
 	}
 
-	return http_static_response(p_connection, "Hello browser", MHD_HTTP_OK);
+	assert(0); //Should never happen
 }
 
 
