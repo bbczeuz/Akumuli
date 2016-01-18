@@ -154,7 +154,6 @@ std::string CollectdProtoParser::make_tag_chain(const tVarList &p_vl, const std:
 		std::runtime_error err(fmt.str());
 		BOOST_THROW_EXCEPTION(err);
 	}
-#endif
 	return tag_chain;
 }
 
@@ -242,7 +241,7 @@ void CollectdProtoParser::parse_values(const char *p_buf, size_t p_buf_size, con
 			//Generate series tag chain
 			std::string tag_chain = make_tag_chain(p_vl, typenames[val_idx].name_);
 			consumer_->series_to_param_id(tag_chain.c_str(), std::strlen(tag_chain.c_str()), &sample);
-#if 1
+#if 0
 			logger_.info() << "Value: .ts = " << sample.timestamp
 				<< ", .paramid = "        << sample.paramid
 				<< ", .tag_chain = "      << tag_chain.c_str() 
