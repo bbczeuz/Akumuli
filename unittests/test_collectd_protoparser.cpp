@@ -14,6 +14,8 @@
 
 #include <log4cxx/logger.h>
 #include <log4cxx/basicconfigurator.h>
+#include <log4cxx/consoleappender.h>
+#include <log4cxx/simplelayout.h>
 #include <log4cxx/propertyconfigurator.h>
 
 log4cxx::LoggerPtr logger(log4cxx::Logger::getLogger("test_collectd_protoparser"));
@@ -252,7 +254,7 @@ struct CollectdProtoParser_tester: CollectdProtoParser
 	static void test_make_tag_chain()
 	{
 #if 0
-		tVarList vl = {
+		static tVarList vl{
 			.host            = "localhost",
 		       	.plugin          = "df",
 		       	.plugin_instance = "root",
@@ -262,7 +264,7 @@ struct CollectdProtoParser_tester: CollectdProtoParser
 			.interval  = 0
 		};
 #else
-		tVarList vl;
+		static tVarList vl;
 	       	vl.host            = "localhost";
 	       	vl.plugin          = "df";
 	       	vl.plugin_instance = "root";
@@ -270,12 +272,14 @@ struct CollectdProtoParser_tester: CollectdProtoParser
 	       	vl.type_instance   = "used";
 #endif
 		std::string tag_chain = CollectdProtoParser::make_tag_chain(vl,"value");
+#if 0
 		std::cout << "tag_chain = \"" << tag_chain.c_str() << "\", size = " << tag_chain.size() << ", strlen = " << std::strlen(tag_chain.c_str()) << ", hex: ";
 
 		for (const auto now_char: tag_chain)
 		{
 			std::cout << "0x" << std::hex << (unsigned int)now_char << ", ";
 		}
+#endif
 	}
 };
 };
@@ -283,14 +287,14 @@ struct CollectdProtoParser_tester: CollectdProtoParser
 int main()
 {
 	//Init log
-	log4cxx::BasicConfigurator::configure();
+	log4cxx::ConsoleAppender *consoleAppender = new log4cxx::ConsoleAppender(log4cxx::LayoutPtr(new log4cxx::SimpleLayout()));
+	log4cxx::BasicConfigurator::configure(log4cxx::AppenderPtr(consoleAppender));
 	//log4cxx::PropertyConfigurator::configure("~/.akumulid");
 	//log4cxx::LoggerPtr rootLogger = log4cxx::Logger::getRootLogger();
 	//logger = Logger::getLogger("sysmonLogger"); 
 
 	try
 	{
-#if 0
 		std::shared_ptr<TypesDB> types = std::make_shared<TypesDB>();
 		types->parse_line("vmpage_number           value:GAUGE:0:4294967295");
 		types->parse_line("vmpage_io               in:DERIVE:0:U, out:DERIVE:0:U");
@@ -314,16 +318,27 @@ int main()
 		//const char tag_chain[] = "variable host=test_vm_mon_as34288_net plugin=vmem plugin_instance= type=vmpage_number type_instance=anon_transparent_hugepages";
 		//const char tag_chain[] = "var ztag=zvalue ytag=yvalue xtag=xvalue";
 		//consumer->series_to_param_id(tag_chain,sizeof(tag_chain),&sample);
-		for (auto i=0u;i<1000000;i++)
+
+		const auto niters = 1000000;
+		std::cout << "Processing " << niters << " packets..." << std::flush;
+		timespec start_ts,stop_ts;
+		clock_gettime(CLOCK_REALTIME, &start_ts);
+		for (auto i=0u;i<niters;i++)
 		{
 			parser.parse_next(pdu);
 		}
-#else
+		clock_gettime(CLOCK_REALTIME, &stop_ts);
+		double tdiff_ns = (double)(stop_ts.tv_nsec - start_ts.tv_nsec)/1000000000 + (stop_ts.tv_sec - start_ts.tv_sec);
+		std::cout << niters/tdiff_ns << " packets/s\n";
+		std::cout << "Processing " << niters << " tag chains..." << std::flush;
+		clock_gettime(CLOCK_REALTIME, &start_ts);
 		for (auto i=0u;i<5000000;i++)
 		{
 			CollectdProtoParser_tester::test_make_tag_chain();
 		}
-#endif
+		clock_gettime(CLOCK_REALTIME, &stop_ts);
+		tdiff_ns = (double)(stop_ts.tv_nsec - start_ts.tv_nsec)/1000000000 + (stop_ts.tv_sec - start_ts.tv_sec);
+		std::cout << niters/tdiff_ns << " tag chains/s\n";
 
 	} catch (std::exception &e)
 	{
