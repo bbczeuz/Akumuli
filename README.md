@@ -76,6 +76,7 @@ In case automatic script didn't work:
 ### Centos 7 / RHEL7 / Fedora?
 #### Prerequisites
 ##### Semiautomatic
+* Run `prerequisites.sh` to install libraries needed. libjemalloc can be found in epel
 * RHEL has an old version of boost that didn't really support coroutines (It's 1.53, which should contain coroutines, but compiling fails). At the time of writing, Akumulid needs boost 1.54 PRECISELY, so uninstall the original and get version 1.54 from the boost website:
 ```
 wget 'http://downloads.sourceforge.net/project/boost/boost/1.54.0/boost_1_54_0.tar.gz'
@@ -91,7 +92,6 @@ cd boost_1_54_0
 * If there are errors `quadmath.h: No such file or directory`, do: `yum install libquadmath-devel`
 * If there are errors `bzlib.h: No such file or directory`, do: `yum install bzip2-devel`
 * If there are errors `pyconfig.h: No such file or directory`, do: `yum install python-devel`
-* Then run `prerequisites.sh` to install the remaining libraries
 
 #### Building
 
