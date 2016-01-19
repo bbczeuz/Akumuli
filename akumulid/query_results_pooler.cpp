@@ -23,6 +23,15 @@ static boost::property_tree::ptree from_json(std::string json) {
     return ptree;
 }
 
+#if 1
+static std::string to_json(boost::property_tree::ptree tree) {
+
+    std::stringstream stream;
+    boost::property_tree::json_parser::write_json(stream, tree);
+    return stream.str();
+}
+#endif
+
 struct CSVOutputFormatter : OutputFormatter {
 
     std::shared_ptr<DbConnection> connection_;
@@ -288,6 +297,161 @@ struct RESPOutputFormatter : OutputFormatter {
     }
 };
 
+struct JSONOutputFormatter : OutputFormatter
+{
+	enum class eOutputState { INIT,RUNNING};
+	enum class eQueryType { UNKNOWN, SHOW_MEASUREMENTS };
+
+	std::shared_ptr<DbConnection> connection_;
+	const bool   iso_timestamps_;
+	boost::property_tree::ptree query_tree_;
+	boost::property_tree::ptree response_tree_;
+	eOutputState output_state_;
+	eQueryType   query_type_ ;
+	std::string  footer_;
+
+	JSONOutputFormatter(std::shared_ptr<DbConnection> con, bool iso_timestamps, boost::property_tree::ptree &p_tree)
+		: connection_(con)
+		, iso_timestamps_(iso_timestamps)
+		, query_tree_(p_tree)
+		, output_state_(eOutputState::INIT)
+		, query_type_(eQueryType::UNKNOWN)
+	{
+	}
+
+	virtual char *add_footer(char* begin, char* end)
+	{
+		if(begin >= end)
+		{
+			return nullptr;  // not enough space inside the buffer
+		}
+		size_t size = end - begin;
+		if (footer_.empty())
+		{
+			footer_ = to_json(response_tree_);
+			std::cerr << "Footer size: " << footer_.size() << std::endl;
+		}
+		std::cerr << "Footer size: " << footer_.size() << std::endl;
+		if (size > footer_.size())
+		{
+			memcpy(begin,footer_.c_str(),footer_.size()+1);
+			return begin+footer_.size();
+		} else {
+			std::stringstream ss;
+			ss << "Result buffer too small (size = " << size << ", needed = " << footer_.size() << ")";
+			BOOST_THROW_EXCEPTION(std::runtime_error(ss.str().c_str()));
+		}
+		return nullptr;
+	}
+
+	char *buf_append(char **p_buf, size_t *p_size, const char *p_append, size_t p_append_size)
+	{
+		if (*p_size >= p_append_size)
+		{
+			*p_size -= p_append_size;
+			return static_cast<char*>(memcpy(*p_buf, p_append, p_append_size));
+		} else {
+			return nullptr;
+		}
+	}
+
+	virtual char* format(char* begin, char* end, const aku_Sample& sample)
+	{
+		if(begin >= end)
+		{
+			return nullptr;  // not enough space inside the buffer
+		}
+		size_t size = end - begin;
+
+		if (output_state_ == eOutputState::INIT)
+		{
+#if 0
+			std::string tree = to_json(query_tree_);
+			std::cerr << "Init state. Tree: " << tree.c_str() << std::endl;
+#endif
+#if 0
+			response_tree_ const char *JSON_RESULT_BEGIN = R"({"results":[{)";
+			if (buf_append(&begin, &size, JSON_RESULT_BEGIN, strlen(JSON_RESULT_BEGIN)) == nullptr)
+			{
+				return nullptr;
+			}
+			footer_ += "}]}";
+#endif
+			auto select_val = query_tree_.get<std::string>("select","");
+
+			if (query_tree_.get<std::string>("select","") == "names")
+			{
+				std::cerr << "Select names statement; ";
+				query_type_ = eQueryType::SHOW_MEASUREMENTS;
+#if 0
+				const char *JSON_SERIES_BEGIN = R"("series":[{"name":"measurements","columns":["name"],"values":[)";
+				if (buf_append(&begin, &size, JSON_SERIES_BEGIN, strlen(JSON_SERIES_BEGIN )) == nullptr)
+				{
+					return nullptr;
+				}
+				footer_ += "]}]";
+#else
+				response_tree_.put("results.series.name","measurements");
+				response_tree_.put("results.series.columns","name");
+#endif
+				output_state_ = eOutputState::RUNNING;
+			}
+		}
+	//		const char *{\"results\":[{\"series\":[{\"name\":\"measurements\",\"columns\":[\"name\"],\"values\":[[\"aggregation_value\"],[\"chrony_value\"],[\"collectd_value\"],[\"cpu_value\"],[\"df_free\"],[\"df_used\"],[\"df_value\"],[\"wxt_\"],[\"wxt_value\"]]}]}]}
+	//	if (size
+		switch (query_type_)
+		{
+			case eQueryType::SHOW_MEASUREMENTS:
+				if (sample.payload.type & aku_PData::PARAMID_BIT)
+				{
+					// Series name
+					int len = connection_->param_id_to_series(sample.paramid, begin, size);
+					if (len <= 0)
+					{
+						std::cerr << "Unknown paramid = " << sample.paramid << "; " << std::flush;
+						return nullptr;
+					}
+					char *measurement_term_pos = strchr(begin,' ');
+					if (measurement_term_pos != nullptr)
+					{
+						*measurement_term_pos = 0;
+						response_tree_.put("results.series.values",begin);
+						//return measurement_term_pos;
+						std::cerr << "Pushing results.series.values = " << begin << std::endl;
+						return begin;
+						//begin += len;
+						//size  -= len;
+					} else {
+						std::cerr << "Measurement terminator not found; " << std::flush;
+						return nullptr;
+					}
+				} else {
+					std::cerr << "PARAMID_BIT not set; " << std::flush;
+					return nullptr;
+				}
+				break;
+			case eQueryType::UNKNOWN:
+				std::cerr << "Unknown query type; " << std::flush;
+				return nullptr;
+		}
+		if (sample.payload.type & aku_PData::PARAMID_BIT)
+		{
+		}
+
+		if (sample.payload.type & aku_PData::TIMESTAMP_BIT)
+		{
+			std::cerr << "TIMESTAMP_BIT set; " << std::flush;
+		}
+
+		if (sample.payload.type & aku_PData::FLOAT_BIT)
+		{
+			std::cerr << "FLOAT_BIT set; " << std::flush;
+		}
+		return begin;
+	}
+};
+
+
 QueryResultsPooler::QueryResultsPooler(std::shared_ptr<DbConnection> con, int readbufsize)
     : connection_(con)
     , rdbuf_pos_(0)
@@ -315,7 +479,7 @@ void QueryResultsPooler::throw_if_not_started() const {
 
 void QueryResultsPooler::start() {
     throw_if_started();
-    enum Format { RESP, CSV };  // TODO: add protobuf support
+    enum Format { RESP, CSV, JSON};  // TODO: add protobuf support
     bool use_iso_timestamps = true;
     Format output_format = RESP;
     boost::property_tree::ptree tree = from_json(query_text_);
@@ -338,6 +502,8 @@ void QueryResultsPooler::start() {
                     output_format = RESP;
                 } else if (fmt == "csv" || fmt == "CSV") {
                     output_format = CSV;
+                } else if (fmt == "json" || fmt == "JSON") {
+                    output_format = JSON;
                 } else {
                     std::runtime_error err("invalid output statement (format)");
                     BOOST_THROW_EXCEPTION(err);
@@ -352,6 +518,10 @@ void QueryResultsPooler::start() {
     case CSV:
         formatter_.reset(new CSVOutputFormatter(connection_, use_iso_timestamps));
         break;
+    case JSON:
+        formatter_.reset(new JSONOutputFormatter(connection_, use_iso_timestamps, tree));
+        break;
+
     };
 
     cursor_ = connection_->search(query_text_);
@@ -372,27 +542,10 @@ aku_Status QueryResultsPooler::get_error() {
 
 std::tuple<size_t, bool> QueryResultsPooler::read_some(char *buf, size_t buf_size) {
     throw_if_not_started();
-    if (rdbuf_pos_ == rdbuf_top_) {
-        if (cursor_->is_done()) {
-            return std::make_tuple(0u, true);
-        }
-        // read new data from DB
-        rdbuf_top_ = cursor_->read(rdbuf_.data(), rdbuf_.size());
-        rdbuf_pos_ = 0u;
-        aku_Status status = AKU_SUCCESS;
-        if (cursor_->is_error(&status)) {
-            // Some error occured, put error message to the outgoing buffer and return
-            int len = snprintf(buf, buf_size, "-%s\r\n", aku_error_message(status));
-            if (len > 0) {
-                return std::make_tuple((size_t)len, true);
-            }
-            return std::make_tuple(0u, true);
-        }
-    }
-
-    // format output
     char* begin = buf;
     char* end = begin + buf_size;
+
+    // format output
     while(rdbuf_pos_ < rdbuf_top_) {
         const aku_Sample* sample = reinterpret_cast<const aku_Sample*>(rdbuf_.data() + rdbuf_pos_);
         if (sample->payload.type != aku_PData::EMPTY) {
@@ -406,6 +559,27 @@ std::tuple<size_t, bool> QueryResultsPooler::read_some(char *buf, size_t buf_siz
         assert(sample->payload.size);
         rdbuf_pos_ += sample->payload.size;
     }
+    std::cerr << "begin - buf = " << begin - buf <<  "; rdbuf_top_ - rdbuf_pos_ = " << rdbuf_top_ - rdbuf_pos_ << std::endl;
+    if (rdbuf_pos_ == rdbuf_top_)
+    {
+        if (cursor_->is_done()) {
+            begin = formatter_->add_footer(begin,end);
+	    std::cerr << "begin - buf (footer) = " << begin - buf << std::endl;
+            return std::make_tuple(begin - buf, true);
+        }
+        // read new data from DB
+        rdbuf_top_ = cursor_->read(rdbuf_.data(), rdbuf_.size());
+        rdbuf_pos_ = 0u;
+        aku_Status status = AKU_SUCCESS;
+        if (cursor_->is_error(&status)) {
+            // Some error occured, put error message to the outgoing buffer and return
+            int len = snprintf(buf, buf_size, "-%s\r\n", aku_error_message(status));
+            begin += len;
+	    std::cerr << "begin - buf (true) = " << begin - buf << std::endl;
+            return std::make_tuple(begin - buf, true);
+        }
+    }
+
     return std::make_tuple(begin - buf, false);
 }
 

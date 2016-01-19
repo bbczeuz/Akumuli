@@ -12,8 +12,7 @@ namespace Grafana {
 
 //! Microhttpd callback functions
 namespace MHD {
-#define NUMBER_OF_THREADS CPU_COUNT
-#if 0
+#if 1
 static ssize_t read_callback(void *data, uint64_t pos, char *buf, size_t max)
 {
     AKU_UNUSED(pos);
@@ -37,7 +36,7 @@ static ssize_t read_callback(void *data, uint64_t pos, char *buf, size_t max)
 }
 #endif
 
-#if 0
+#if 1
 static void free_callback(void *data) {
     ReadOperation* cur = (ReadOperation*)data;
     cur->close();
@@ -72,30 +71,33 @@ static int http_static_response(MHD_Connection *p_connection, const char *p_mess
 	return ret;
 }
 
-static int parse_show_measurments(MHD_Connection *p_connection, const std::vector<std::string> &p_tokens, const char *p_query)
+static std::string parse_show_measurements(MHD_Connection *p_connection, const std::vector<std::string> &p_tokens, const char *p_query)
 {
 	unsigned long nvals_requested = 0;
 	if (p_tokens.size() == 2)
 	{
-		//Return all measurment names
+		//Return all measurement names
 		//TODO: Implement
-		const char *temporary_fix = "{\"results\":[{\"series\":[{\"name\":\"measurements\",\"columns\":[\"name\"],\"values\":[[\"aggregation_value\"],[\"chrony_value\"],[\"collectd_value\"],[\"cpu_value\"],[\"df_free\"],[\"df_used\"],[\"df_value\"],[\"wxt_\"],[\"wxt_value\"]]}]}]}";
-		return http_static_response(p_connection, temporary_fix, MHD_HTTP_OK, "application/json");
+		//const char *temporary_fix = "{\"results\":[{\"series\":[{\"name\":\"measurements\",\"columns\":[\"name\"],\"values\":[[\"aggregation_value\"],[\"chrony_value\"],[\"collectd_value\"],[\"cpu_value\"],[\"df_free\"],[\"df_used\"],[\"df_value\"],[\"wxt_\"],[\"wxt_value\"]]}]}]}";
+		//return http_static_response(p_connection, temporary_fix, MHD_HTTP_OK, "application/json");
+		return "{ \"output\": { \"format\": \"json\" }, \"select\": \"names\"}";
 	} else if ((p_tokens.size() == 4) && (boost::iequals(p_tokens[2],"limit")) && ((nvals_requested = std::stoul(p_tokens[3])) > 0))
 	{
 		//Request up to nvals_requested measurement names
 		//TODO: Implement
-		const char *temporary_fix = "{\"results\":[{\"series\":[{\"name\":\"measurements\",\"columns\":[\"name\"],\"values\":[[\"aggregation_value\"]]}]}]}";
-		return http_static_response(p_connection, temporary_fix, MHD_HTTP_OK, "application/json");
+		//const char *temporary_fix = "{\"results\":[{\"series\":[{\"name\":\"measurements\",\"columns\":[\"name\"],\"values\":[[\"aggregation_value\"]]}]}]}";
+		//return http_static_response(p_connection, temporary_fix, MHD_HTTP_OK, "application/json");
+		return "{ \"output\": { \"format\": \"json\" }, \"select\": \"names\"}";
+		//return "{ \"output\": { \"format\": \"json\" }, \"select\": \"names\", \"limit\": " + std::to_string(nvals_requested) + " }";
 
 	} else {
-		return http_static_response(p_connection, "Invalid query", MHD_HTTP_BAD_REQUEST);
+		std::runtime_error err("Invalid query");
+		BOOST_THROW_EXCEPTION(err);
 	}
 	assert(0); //Shouldn't arrive here
-	return MHD_NO;
 }
 
-
+#if 0
 static int parse_show_tag_keys(MHD_Connection *p_connection, const std::vector<std::string> &p_tokens, const char *p_query)
 {
 	//TODO: Implement
@@ -137,24 +139,20 @@ static int parse_select(MHD_Connection *p_connection, const std::vector<std::str
 	const char *temporary_fix = "{\"results\":[{\"series\":[{\"name\":\"cpu_value\",\"columns\":[\"time\",\"mean\"],\"values\":[[1452979800000,2.378373672222222e+08],[1452980700000,2.378835611111111e+08],[1452981600000,2.379613391111111e+08],[1453001400000,2.3967489180555555e+08]]}]}]}";
 	return http_static_response(p_connection, temporary_fix, MHD_HTTP_OK, "application/json");
 }
+#endif
 
-static int parse_query_string(MHD_Connection *p_connection, const char *p_query)
+
+static std::string parse_query_string(MHD_Connection *p_connection, const char *p_query)
 {
 	std::string query{p_query};
 	std::vector<std::string> tokens;
 	boost::split(tokens, query, boost::algorithm::is_space(), boost::token_compress_on);
 	//TODO: p_query could contain multiple semicolon separated queries
-#if 0
-	std::cout << "Tokens: ";
-	for (const auto token:tokens)
-	{
-		std::cout << token.c_str() << ", ";
-	}
-	std::cout << std::endl;
-#endif
+
 	if (tokens.empty() || tokens[0].empty())
 	{
-		return http_static_response(p_connection, "Empty query", MHD_HTTP_BAD_REQUEST);
+		std::runtime_error err("Empty query");
+		BOOST_THROW_EXCEPTION(err);
 	}
 	if (boost::iequals(tokens[0],"show"))
 	{
@@ -164,34 +162,42 @@ static int parse_query_string(MHD_Connection *p_connection, const char *p_query)
 			{
 				//Example: SHOW MEASUREMENTS LIMIT 1
 				//TODO: Implement
-				return parse_show_measurments(p_connection, tokens, p_query);
+				return parse_show_measurements(p_connection, tokens, p_query);
 			} else if (boost::iequals(tokens[1],"field"))
 			{
 				//Example: SHOW FIELD KEYS FROM "cpu_value"
 				//TODO: Implement
-				return http_static_response(p_connection, "SHOW FIELD: Unimplemented", MHD_HTTP_BAD_REQUEST);
+				std::runtime_error err("SHOW FIELD: Unimplemented");
+				BOOST_THROW_EXCEPTION(err);
+				//return parse_show_field(p_connection, tokens, p_query);
 			} else if (boost::iequals(tokens[1],"tag"))
 			{
 				//Example: SHOW TAG KEYS FROM "cpu_value"
-				return parse_show_tag(p_connection, tokens, p_query);
-			} else {
-				return http_static_response(p_connection, "token[1]: expected MEASUREMENTS, FIELD, TAG", MHD_HTTP_BAD_REQUEST);
+				//TODO: Implement
+				std::runtime_error err("SHOW TAG: Unimplemented");
+				BOOST_THROW_EXCEPTION(err);
+				//return parse_show_tag(p_connection, tokens, p_query);
 			}
-		} else {
 		}
+
+		std::runtime_error err("token[1]: expected MEASUREMENTS, FIELD, TAG");
+		BOOST_THROW_EXCEPTION(err);
 	} else if (boost::iequals(tokens[0],"select"))
 	{
 		//Example: SELECT mean("value") FROM "cpu_value" WHERE time > now() - 6h GROUP BY time(30s) fill(null)
-		return parse_select(p_connection, tokens, p_query);
+		std::runtime_error err("SELECT: Unimplemented");
+		BOOST_THROW_EXCEPTION(err);
+		//return parse_select(p_connection, tokens, p_query);
 	} else {
-		return http_static_response(p_connection, "token[0]: expected SHOW, SELECT", MHD_HTTP_BAD_REQUEST);
+		std::runtime_error err("token[0]: expected SHOW, SELECT");
+		BOOST_THROW_EXCEPTION(err);
 	}
 
 	assert(0); //Should never happen
 }
 
 
-static int parse_http_query(MHD_Connection *p_connection)
+static int parse_http_query(MHD_Connection *p_connection, void *p_cls, void **p_con_cls)
 {
 	const char *db_name  = MHD_lookup_connection_value(p_connection, MHD_GET_ARGUMENT_KIND, "db");
 	//const char *epoch    = MHD_lookup_connection_value(p_connection, MHD_GET_ARGUMENT_KIND, "epoch"); //Timestamp format (default: RFC3339 UTC in ns)
@@ -210,7 +216,49 @@ static int parse_http_query(MHD_Connection *p_connection)
 	}
 	std::cout << "MHD: db = " << db_name << ", query = " << db_query << std::endl;
 
-	return parse_query_string(p_connection, db_query);
+	//Translate and forward query to ReadOperationBuilder
+        ReadOperationBuilder *queryproc = static_cast<ReadOperationBuilder*>(p_cls);
+        ReadOperation* cursor = static_cast<ReadOperation*>(*p_con_cls);
+
+        if (cursor == nullptr)
+	{
+		//New request
+		cursor = queryproc->create();
+		*p_con_cls = cursor;
+		return MHD_YES;
+        }
+
+
+        auto error_response = [&](const char* msg) {
+            char buffer[0x200];
+            int len = snprintf(buffer, 0x200, "-%s\r\n", msg);
+            auto response = MHD_create_response_from_buffer(len, buffer, MHD_RESPMEM_MUST_COPY);
+            int ret = MHD_queue_response(p_connection, MHD_HTTP_BAD_REQUEST, response);
+            MHD_destroy_response(response);
+            return ret;
+        };
+
+        // Should be called once per request
+        try {
+		std::string query_json = parse_query_string(p_connection, db_query);
+		cursor->append(query_json.c_str(), query_json.size());
+		cursor->start();
+        } catch (const std::exception& err) {
+            return error_response(err.what());
+        }
+
+        // Check for error
+        auto err = cursor->get_error();
+        if (err != AKU_SUCCESS) {
+            const char* error_msg = aku_error_message(err);
+            return error_response(error_msg);
+        }
+
+        auto response = MHD_create_response_from_callback(MHD_SIZE_UNKNOWN, 64*1024, &read_callback, cursor, &free_callback);
+        int ret = MHD_queue_response(p_connection, MHD_HTTP_OK, response);
+        MHD_destroy_response(response);
+        return ret;
+
 }
 
 static int parse_http_write(MHD_Connection *p_connection)
@@ -223,6 +271,69 @@ static int parse_http_write(MHD_Connection *p_connection)
 	//TODO: Process write requests! Temporary fix: Silently discard data
 	return http_static_response(p_connection, "", MHD_HTTP_NO_CONTENT);
 }
+
+#if 0
+static int parse_http_api_suggest(MHD_Connection *p_connection)
+{
+	//Docs: http://opentsdb.net/docs/build/html/api_http/suggest.html
+	//- Case sensitive search for types, tag keys or tag values
+	//- Matches begin of name ('sy' matches 'system', 'symbol', 'syblabla')
+	//- Returns top 25 results if no max param is given
+	//- Results are sorted alphabetically
+	//- Results come as JSON array of string
+	const char *metric_type  = MHD_lookup_connection_value(p_connection, MHD_GET_ARGUMENT_KIND, "type"); //Required
+	//const char *metric_query = MHD_lookup_connection_value(p_connection, MHD_GET_ARGUMENT_KIND, "q"); //Optional
+	//const char *metric_limit = MHD_lookup_connection_value(p_connection, MHD_GET_ARGUMENT_KIND, "max"); //Optional
+	if (metric_type == nullptr)
+	{
+		return http_static_response(p_connection, "Metric type missing", MHD_HTTP_BAD_REQUEST);
+	}
+	if (strcmp(metric_type,"metrics") == 0)
+	{
+		//TODO: Implement
+		const char *temporary_fix = "[\n  \"sys.cpu.0.nice\",\n  \"sys.cpu.0.system\",\n  \"sys.cpu.0.user\",\n  \"sys.cpu.1.nice\",\n  \"sys.cpu.1.system\",\n  \"sys.cpu.1.user\"\n]";
+		return http_static_response(p_connection, temporary_fix, MHD_HTTP_OK, "application/json");
+	} else if (strcmp(metric_type,"tagk") == 0)
+	{
+		//TODO: Implement
+		const char *temporary_fix = "[\n  \"host\",\n  \"plugin\",\n  \"plugin_instance\",\n  \"type\",\n  \"type_instance\"\n]";
+		return http_static_response(p_connection, temporary_fix, MHD_HTTP_OK, "application/json");
+	} else if (strcmp(metric_type,"tagv") == 0)
+	{
+		//TODO: Implement
+		return http_static_response(p_connection, "Unimplemented type value", MHD_HTTP_BAD_REQUEST);
+	} else {
+		return http_static_response(p_connection, "Unknown type value", MHD_HTTP_BAD_REQUEST);
+	}
+
+}
+
+static int parse_http_api_aggregators(MHD_Connection *p_connection)
+{
+	//Docs: http://opentsdb.net/docs/build/html/api_http/aggregators.html
+	//- Returns implemented aggregation functions
+	//- Results come as JSON array of string
+
+	//TODO: Implement
+	const char *temporary_fix = "[\n    \"min\",\n    \"sum\",\n    \"max\",\n    \"avg\",\n    \"dev\"\n]";
+	return http_static_response(p_connection, temporary_fix, MHD_HTTP_OK, "application/json");
+}
+
+static int parse_http_options_api_query(MHD_Connection *p_connection)
+{
+	//Minimal implementation
+
+	struct MHD_Response *response;
+	response = MHD_create_response_from_buffer (0,nullptr, MHD_RESPMEM_PERSISTENT);
+	MHD_add_response_header(response, "Allow", "GET,POST,DELETE");
+	int ret = MHD_queue_response (p_connection, MHD_HTTP_OK, response);
+	MHD_destroy_response (response);
+	return ret;
+	//TODO: Implement
+	//const char *temporary_fix = "{ \"POST\": {\"parameters\": { \"start\": {\"type\": \"string\", \"required\": true}, \"queries\":{\"type\": \"string\", \"required\": true}, \"end\": { \"type\": \"string\", \"required\": true }, } }";
+	//return http_static_response(p_connection, temporary_fix, MHD_HTTP_OK, "application/json");
+}
+#endif
 
 static int handle_connection(void           *p_cls,
                              MHD_Connection *p_connection,
@@ -240,19 +351,24 @@ static int handle_connection(void           *p_cls,
 		std::cout << "MHD: method = " << p_method << ", url = " << p_url << std::endl;
 		if (strcmp(p_url, "/query") == 0)
 		{
-			return parse_http_query(p_connection);
+			//InfluxDB Language
+			return parse_http_query(p_connection, p_cls, p_con_cls);
+#if 0
+		} else if (strcmp(p_url, "/api/suggest") == 0)
+		{
+			//OpenTSDB language
+			//GET /api/suggest?max=1000&q=cpu&type=metrics
+			return parse_http_api_suggest(p_connection);
+		} else if (strcmp(p_url, "/api/aggregators") == 0)
+		{
+			//OpenTSDB language
+			//GET /api/aggregators
+			return parse_http_api_aggregators(p_connection);
+#endif
 		} else {
 			return http_static_response(p_connection, "File not found", MHD_HTTP_NOT_FOUND);
 		}
 
-		//Test connection: GET /query?db=collectd_db&epoch=ms&q=SHOW+MEASUREMENTS+LIMIT+1
-		// --> Expected response header: Content-Type: application/json\r\n
-		// --> Body: {"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["aggregation_value"]]}]}]}
-		// List metrics: GET /query?db=collectd_db&epoch=ms&p=YTkXsOsoAfAN4R1O1M9K&q=SHOW+MEASUREMENTS&u=grafana_user
-		// --> Header: Content-Type: application/json\r\n
-		// --> Body: {"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["aggregation_value"],["chrony_value"],["collectd_value"],["cpu_value"],["df_free"],["df_used"],["df_value"],["disk_io_time"],["disk_read"],["vmem_majflt"],["vmem_minflt"],["vmem_out"],["vmem_value"]]}]}]} 
-		//
-		//
 		return http_static_response(p_connection, "Hello browser", MHD_HTTP_OK);
 	} else if (strcmp(p_method, "POST") == 0)
 	{
@@ -262,6 +378,16 @@ static int handle_connection(void           *p_cls,
 		} else {
 			return http_static_response(p_connection, "Invalid POST path", MHD_HTTP_BAD_REQUEST);
 		}
+#if 0
+	} else if (strcmp(p_method, "OPTIONS") == 0)
+	{
+		if (strcmp(p_url, "/api/query") == 0)
+		{
+			return parse_http_options_api_query(p_connection);
+		} else {
+			return http_static_response(p_connection, "Invalid OPTIONS path", MHD_HTTP_BAD_REQUEST);
+		}
+#endif
 	} else {
 		return http_static_response(p_connection, "Unsupported method", MHD_HTTP_METHOD_NOT_ALLOWED);
 	}
