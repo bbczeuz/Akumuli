@@ -1,9 +1,19 @@
 #include "query_results_pooler.h"
 #include <cstdio>
 #include <thread>
+#include <memory>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/exception/all.hpp>
+
+namespace std
+{
+	template<typename T, typename... Args>
+	std::unique_ptr<T> make_unique(Args&&... args)
+	{
+		return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+	}
+};
 
 namespace Akumuli {
 
@@ -306,9 +316,12 @@ struct JSONOutputFormatter : OutputFormatter
 	const bool   iso_timestamps_;
 	boost::property_tree::ptree query_tree_;
 	boost::property_tree::ptree response_tree_;
+	std::list<std::string> body_list_;
+	//progon::json_tree response_tree_;
 	eOutputState output_state_;
 	eQueryType   query_type_ ;
 	std::string  footer_;
+	size_t footer_pos_;
 
 	JSONOutputFormatter(std::shared_ptr<DbConnection> con, bool iso_timestamps, boost::property_tree::ptree &p_tree)
 		: connection_(con)
@@ -319,29 +332,71 @@ struct JSONOutputFormatter : OutputFormatter
 	{
 	}
 
-	virtual char *add_footer(char* begin, char* end)
+	virtual bool drain(char** begin, char* end)
+	//Returns true if we're done draining the queue; false otherwise (data is copied to *begin)
+	//Data will NOT be sent if we return true!
 	{
-		if(begin >= end)
+		std::cerr << "JSONOutputFormatter::drain" << std::endl;
+
+		if(*begin >= end)
 		{
 			return nullptr;  // not enough space inside the buffer
 		}
-		size_t size = end - begin;
-		if (footer_.empty())
+		size_t size = end - *begin;
+		if (!body_list.empty())
 		{
-			footer_ = to_json(response_tree_);
-			std::cerr << "Footer size: " << footer_.size() << std::endl;
+			size_t result_size = 0;
+			for (const auto nowIt:body_list)
+			{
+				result_size += nowIt.size()+1;
+			}
+			std::string temp;
+			temp.reserve(result_size);
+			const auto nowIt = body_list.cbegin();
+			if (nowIt != body_list.cend())
+			{
+				temp += *nowIt++;
+			}
+
+			while (nowIt != body_list.cend())
+			{
+				temp.push_back(',');
+				temp += *nowIt;
+				nowIt++;
+			}
+
+			footer_ = temp + footer_;
+			footer_pos_ = 0;
+			body_list.clear();
+		} else if (!response_tree_.empty())
+		{
+			footer_ = to_json(response_tree_) + footer_;
+			footer_pos_ = 0;
+			response_tree_.clear();
 		}
 		std::cerr << "Footer size: " << footer_.size() << std::endl;
+		std::cerr << "Footer contents: " << footer_.c_str() << std::endl;
+
+		if (footer_.empty())
+		{
+			return true;
+		}
 		if (size > footer_.size())
 		{
-			memcpy(begin,footer_.c_str(),footer_.size()+1);
-			return begin+footer_.size();
+			//Send all buffered data
+			memcpy(*begin,footer_.c_str(),footer_.size()+1);
+			*begin += footer_.size();
+			footer_.clear();
 		} else {
-			std::stringstream ss;
-			ss << "Result buffer too small (size = " << size << ", needed = " << footer_.size() << ")";
-			BOOST_THROW_EXCEPTION(std::runtime_error(ss.str().c_str()));
+			//Send part 
+			memcpy(*begin,footer_.c_str(),size);
+			footer_.erase(footer_.begin(),footer_.begin()+size);
+			*begin += size;
+//			std::stringstream ss;
+//			ss << "Result buffer too small (size = " << size << ", needed = " << footer_.size() << ")";
+//			BOOST_THROW_EXCEPTION(std::runtime_error(ss.str().c_str()));
 		}
-		return nullptr;
+		return false;
 	}
 
 	char *buf_append(char **p_buf, size_t *p_size, const char *p_append, size_t p_append_size)
@@ -362,37 +417,34 @@ struct JSONOutputFormatter : OutputFormatter
 			return nullptr;  // not enough space inside the buffer
 		}
 		size_t size = end - begin;
+		bool initial_value = false;
 
 		if (output_state_ == eOutputState::INIT)
 		{
-#if 0
-			std::string tree = to_json(query_tree_);
-			std::cerr << "Init state. Tree: " << tree.c_str() << std::endl;
-#endif
-#if 0
-			response_tree_ const char *JSON_RESULT_BEGIN = R"({"results":[{)";
-			if (buf_append(&begin, &size, JSON_RESULT_BEGIN, strlen(JSON_RESULT_BEGIN)) == nullptr)
-			{
-				return nullptr;
-			}
-			footer_ += "}]}";
-#endif
 			auto select_val = query_tree_.get<std::string>("select","");
 
 			if (query_tree_.get<std::string>("select","") == "names")
 			{
 				std::cerr << "Select names statement; ";
 				query_type_ = eQueryType::SHOW_MEASUREMENTS;
-#if 0
-				const char *JSON_SERIES_BEGIN = R"("series":[{"name":"measurements","columns":["name"],"values":[)";
+#if 1
+				const char *JSON_SERIES_BEGIN = R"({"results":[{"series":[{"name":"measurements","columns":["name"],"values":[)";
 				if (buf_append(&begin, &size, JSON_SERIES_BEGIN, strlen(JSON_SERIES_BEGIN )) == nullptr)
 				{
 					return nullptr;
 				}
-				footer_ += "]}]";
+				footer_ += "]}]}]}";
+				initial_value = true;
+#else
+#if 1
+				footer_ += R"({"results":[{"series":[{"name":"measurements","columns":["name"],"values":[)";
 #else
 				response_tree_.put("results.series.name","measurements");
-				response_tree_.put("results.series.columns","name");
+				boost::property_tree::ptree cols_tree,cols0_tree;
+				cols0_tree.put("","measurements");
+				cols_tree.push_back(std::make_pair("",cols0_tree));
+				response_tree_.add_child("results.series.columns",cols_tree);
+#endif
 #endif
 				output_state_ = eOutputState::RUNNING;
 			}
@@ -405,24 +457,54 @@ struct JSONOutputFormatter : OutputFormatter
 				if (sample.payload.type & aku_PData::PARAMID_BIT)
 				{
 					// Series name
-					int len = connection_->param_id_to_series(sample.paramid, begin, size);
-					if (len <= 0)
+					if (size >5)
 					{
-						std::cerr << "Unknown paramid = " << sample.paramid << "; " << std::flush;
-						return nullptr;
-					}
-					char *measurement_term_pos = strchr(begin,' ');
-					if (measurement_term_pos != nullptr)
-					{
-						*measurement_term_pos = 0;
-						response_tree_.put("results.series.values",begin);
+						int len = connection_->param_id_to_series(sample.paramid, begin+3, size-5);
+						if (len <= 0)
+						{
+							std::cerr << "Unknown paramid = " << sample.paramid << "; " << std::flush;
+							return nullptr;
+						}
+						if (initial_value)
+						{
+							begin[0]=' ';
+						} else {
+							begin[0]=',';
+						}
+						begin[1]='[';
+						begin[2]='"';
+						char *measurement_term_pos = strchr(begin+3,' ');
+						if (measurement_term_pos != nullptr)
+						{
+							measurement_term_pos[0] = '"';
+							measurement_term_pos[1] = ']';
+							measurement_term_pos[2] = 0;
+#if 0
+#if 1
+						footer_.push_back('[');
+						footer_.push_back('"');
+						footer_ += begin;
+						footer_.push_back('"');
+						footer_.push_back(']');
+#else
+						boost::property_tree::ptree vals_tree,val0_tree;
+						val0_tree.put("",begin);
+						vals_tree.push_back(std::make_pair("",val0_tree));
+						response_tree_.add_child("results.series.values",vals_tree);
+						//response_tree_.add_child("results.series.values",std::make_pair("",begin));
 						//return measurement_term_pos;
-						std::cerr << "Pushing results.series.values = " << begin << std::endl;
-						return begin;
+						//std::cerr << "Pushing results.series.values = " << begin << std::endl;
+#endif
+#endif
+							return measurement_term_pos+2;
 						//begin += len;
 						//size  -= len;
+						} else {
+							std::cerr << "Measurement terminator not found; " << std::flush;
+							return nullptr;
+						}
 					} else {
-						std::cerr << "Measurement terminator not found; " << std::flush;
+						std::cerr << "Buffer too small; " << std::flush;
 						return nullptr;
 					}
 				} else {
@@ -519,7 +601,7 @@ void QueryResultsPooler::start() {
         formatter_.reset(new CSVOutputFormatter(connection_, use_iso_timestamps));
         break;
     case JSON:
-        formatter_.reset(new JSONOutputFormatter(connection_, use_iso_timestamps, tree));
+        formatter_ = std::make_unique<JSONOutputFormatter>(connection_, use_iso_timestamps, tree);
         break;
 
     };
@@ -545,27 +627,14 @@ std::tuple<size_t, bool> QueryResultsPooler::read_some(char *buf, size_t buf_siz
     char* begin = buf;
     char* end = begin + buf_size;
 
-    // format output
-    while(rdbuf_pos_ < rdbuf_top_) {
-        const aku_Sample* sample = reinterpret_cast<const aku_Sample*>(rdbuf_.data() + rdbuf_pos_);
-        if (sample->payload.type != aku_PData::EMPTY) {
-            char* next = formatter_->format(begin, end, *sample);
-            if (next == nullptr) {
-                // done
-                break;
-            }
-            begin = next;
-        }
-        assert(sample->payload.size);
-        rdbuf_pos_ += sample->payload.size;
-    }
+    std::cerr << "read_some(buf = " << (size_t)buf << ", buf_size = " << buf_size << ")" << std::endl;
     std::cerr << "begin - buf = " << begin - buf <<  "; rdbuf_top_ - rdbuf_pos_ = " << rdbuf_top_ - rdbuf_pos_ << std::endl;
     if (rdbuf_pos_ == rdbuf_top_)
     {
         if (cursor_->is_done()) {
-            begin = formatter_->add_footer(begin,end);
+	    bool is_drained = formatter_->drain(&begin,end);
 	    std::cerr << "begin - buf (footer) = " << begin - buf << std::endl;
-            return std::make_tuple(begin - buf, true);
+            return std::make_tuple(begin - buf, is_drained);
         }
         // read new data from DB
         rdbuf_top_ = cursor_->read(rdbuf_.data(), rdbuf_.size());
@@ -580,6 +649,23 @@ std::tuple<size_t, bool> QueryResultsPooler::read_some(char *buf, size_t buf_siz
         }
     }
 
+    // format output
+    while(rdbuf_pos_ < rdbuf_top_) {
+        const aku_Sample* sample = reinterpret_cast<const aku_Sample*>(rdbuf_.data() + rdbuf_pos_);
+        if (sample->payload.type != aku_PData::EMPTY) {
+            char* next = formatter_->format(begin, end, *sample);
+            if (next == nullptr) {
+                // done
+	        std::cerr << "formatter_->format -> nullptr" << std::endl;
+                break;
+            }
+            begin = next;
+        }
+        assert(sample->payload.size);
+        rdbuf_pos_ += sample->payload.size;
+    }
+
+    std::cerr << "begin - buf (false) = " << begin - buf << std::endl;
     return std::make_tuple(begin - buf, false);
 }
 

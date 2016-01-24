@@ -16,6 +16,15 @@ target_link_libraries(test_utils
 )
 add_test(utils test_utils)
 
+add_executable(
+    test_json
+    test_json.cpp
+)
+target_link_libraries(test_json
+	#    ${Boost_LIBRARIES}
+)
+add_test(json test_json)
+
 # Streams
 add_executable(
     test_streams

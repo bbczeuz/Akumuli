@@ -9,8 +9,9 @@ namespace Akumuli {
 //! Output formatter interface
 struct OutputFormatter {
     virtual char* format(char* begin, char* end, const aku_Sample& sample) = 0;
-    virtual char* add_header(char* begin, char* end) { return nullptr; };
-    virtual char* add_footer(char* begin, char* end) { return nullptr; };
+    virtual char* add_header(char* begin, char* end) { return begin; };
+    virtual char* add_footer(char* begin, char* end) { return begin; };
+    virtual bool  drain(char** begin, char* end) { return true; }; //no queueing per default
 };
 
 
