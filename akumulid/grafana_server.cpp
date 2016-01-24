@@ -80,14 +80,14 @@ static std::string parse_show_measurements(MHD_Connection *p_connection, const s
 		//TODO: Implement
 		//const char *temporary_fix = "{\"results\":[{\"series\":[{\"name\":\"measurements\",\"columns\":[\"name\"],\"values\":[[\"aggregation_value\"],[\"chrony_value\"],[\"collectd_value\"],[\"cpu_value\"],[\"df_free\"],[\"df_used\"],[\"df_value\"],[\"wxt_\"],[\"wxt_value\"]]}]}]}";
 		//return http_static_response(p_connection, temporary_fix, MHD_HTTP_OK, "application/json");
-		return "{ \"output\": { \"format\": \"json\" }, \"select\": \"names\"}";
+		return R"({ "output": { "format": "json" }, "select": "names" }";
 	} else if ((p_tokens.size() == 4) && (boost::iequals(p_tokens[2],"limit")) && ((nvals_requested = std::stoul(p_tokens[3])) > 0))
 	{
 		//Request up to nvals_requested measurement names
 		//TODO: Implement
 		//const char *temporary_fix = "{\"results\":[{\"series\":[{\"name\":\"measurements\",\"columns\":[\"name\"],\"values\":[[\"aggregation_value\"]]}]}]}";
 		//return http_static_response(p_connection, temporary_fix, MHD_HTTP_OK, "application/json");
-		return "{ \"output\": { \"format\": \"json\" }, \"select\": \"names\"}";
+		return R"({ "output": { "format": "json" }, "select": "names", "limit": )" + std::to_string(nvals_requested) + " }";
 		//return "{ \"output\": { \"format\": \"json\" }, \"select\": \"names\", \"limit\": " + std::to_string(nvals_requested) + " }";
 
 	} else {

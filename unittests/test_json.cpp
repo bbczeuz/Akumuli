@@ -27,7 +27,7 @@
 	}
 }
 #endif
-#if 0
+#if 1
 static std::string to_json(boost::property_tree::ptree tree)
 {
 	std::stringstream stream;
@@ -36,7 +36,7 @@ static std::string to_json(boost::property_tree::ptree tree)
 }
 #endif
 
-#if 1
+#if 0
 namespace progon
 {
 	struct Json;
@@ -87,10 +87,35 @@ namespace progon
 
 int main()
 {
-	std::string reference = "{\n\"results\": [\n{\n\"series\": [\n{\n\"name\": \"measurements\",\n\"columns\": [\n\"name\"\n],\n\"values\": [\n[\n\"aggregation_value\"\n],\n[\n\"chrony_value\"\n],\n[\n\"collectd_value\"\n],\n[\n\"cpu_value\"\n],\n[\n\"df_free\"\n],\n[\n\"df_used\"\n],\n[\n\"df_value\"\n],\n[\n\"wxt_\"\n],\n[\n\"wxt_value\"\n]\n]\n}\n]\n}\n]\n}";
+	std::string reference = R"({
+	"results": [
+	{
+		"series": [
+			{
+				"name": "measurements",
+				"columns": [
+					"name"
+				],
+				"values": [
+					[
+						"aggregation_value"
+					],
+					[
+						"chrony_value"
+					],
+					[
+						"wxt_value"
+					]
+				]
+			}
+		]
+	}
+	]
+})";
 
 	std::cout << "Reference:\n" << reference.c_str() << std::endl;
-	
+
+#if 0	
 	progon::Json json;
 	//json.array["results"] = "";//]->child->name = "ble";
 	json.child["results"] = "";//]->child->name = "ble";
@@ -98,13 +123,15 @@ int main()
 	std::stringstream ss;
 	json.serialize(ss);
 	std::cout << "Serialized:\n" << ss.str().c_str() << std::endl;
-#if 0
+#endif
+#if 1
 	boost::property_tree::ptree response_tree_;
 	response_tree_.put("results.series.name","measurements");
-	boost::property_tree::ptree cols_tree,cols0_tree;
-	cols0_tree.put("","measurements");
+	boost::property_tree::ptree cols_tree,cols0_tree,cols1_tree;
+	cols1_tree.put("series","measurements");
+	cols0_tree.push_back(std::make_pair("",cols1_tree));
 	cols_tree.push_back(std::make_pair("",cols0_tree));
-	response_tree_.add_child("results.series.columns",cols_tree);
+	response_tree_.add_child("results",cols_tree);
 
 	std::string respstr = to_json(response_tree_);
 	std::cout << "Result:\n" << respstr.c_str() << std::endl;
